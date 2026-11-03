@@ -1,54 +1,37 @@
 
-
-name: Test Source Files
+name: iOS Dylib Compile Test
 
 on:
   workflow_dispatch:
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: macos-14
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Check source folder
+      - name: Check Xcode
+        run: xcodebuild -version
+
+      - name: Compile dylib
         shell: bash
         run: |
           set -euo pipefail
 
-          SOURCE_DIR="FUCK-IOS-DEV-extracted/FUCK IOS DEV"
+          mkdir -p build
 
-          if [ ! -d "$SOURCE_DIR" ]; then
-            echo "Source folder not found"
-            exit 1
-          fi
+          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
 
-          echo "Source folder found"
+          clang++ \
+            -arch arm64 \
+            -isysroot "$SDK" \
+            -miphoneos-version-min=13.0 \
+            -dynamiclib \
+            -fobjc-arc \
+            -framework Foundation \
+            FUCK-IOS-DEV-extracted/FUCK IOS DEV/ImGuiDrawView.mm \
+            -o build/CustomLibrary.dylib
 
-      - name: Verify source files
-        shell: bash
-        run: |
-          set -euo pipefail
 
-          SOURCE_DIR="FUCK-IOS-DEV-extracted/FUCK IOS DEV"
-
-          for FILE in \
-            "ImGuiDrawView.mm" \
-            "Makefile" \
-            "Make.sh" \
-            "SDK.hpp" \
-            "Iconcpp.h"
-          do
-            if [ -f "$SOURCE_DIR/$FILE" ]; then
-              echo "FOUND: $FILE"
-            else
-              echo "MISSING: $FILE"
-            fi
-          done
-
-      - name: List source directories
-        run: |
-          find "FUCK-IOS-DEV-extracted/FUCK IOS DEV" \
-            -maxdepth 2 -type d
