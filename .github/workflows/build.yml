@@ -15,20 +15,13 @@ jobs:
         with:
           submodules: true
 
+      - name: Pre-create Theos SDKs directory
+        run: mkdir -p theos/sdks
+
       - name: Setup Theos
         uses: Randomblock1/theos-action@v1
         with:
           theos-dir: 'theos'
-
-      - name: Debug THEOS (critical)
-        run: |
-          echo "THEOS = $THEOS"
-          echo "--- checking common.mk ---"
-          ls -la "$THEOS/makefiles/common.mk" || echo "COMMON.MK MISSING!"
-          echo "--- checking tweak.mk ---"
-          ls -la "$THEOS_MAKE_PATH/tweak.mk" || echo "TWEAK.MK MISSING!"
-          echo "--- listing THEOS root ---"
-          ls -la "$THEOS" | head -20
 
       - name: Build package
         run: |
