@@ -1,37 +1,37 @@
-
-name: iOS Dylib Compile Test
+name: Theos Build
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Check Xcode
-        run: xcodebuild -version
-
-      - name: Compile dylib
-        shell: bash
+      - name: Install Theos
         run: |
-          set -euo pipefail
+          git clone --recursive https://github.com/theos/theos.git "$HOME/theos"
+          echo "THEOS=$HOME/theos" >> "$GITHUB_ENV"
 
-          mkdir -p build
+      - name: Install dependencies
+        run: |
+          brew install ldid
 
-          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+      - name: Build tweak
+        working-directory: "working-directory: "FUCK-IOS-DEV-extracted/FUCK IOS DEV"
+        run: |
+          make clean
+          make package FINALPACKAGE=1
 
-          clang++ \
-            -arch arm64 \
-            -isysroot "$SDK" \
-            -miphoneos-version-min=13.0 \
-            -dynamiclib \
-            -fobjc-arc \
-            -framework Foundation \
-            FUCK-IOS-DEV-extracted/FUCK IOS DEV/ImGuiDrawView.mm \
-            -o build/CustomLibrary.dylib
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Theos-Build
+          path: FUCK-IOS-DEV-extracted/FUCK IOS DEV/.theos/obj/**/*.dylib
 
 
