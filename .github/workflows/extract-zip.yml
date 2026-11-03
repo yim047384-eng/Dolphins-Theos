@@ -26,8 +26,8 @@ jobs:
           test -f "$ZIP_PATH"
           mkdir -p "FUCK-IOS-DEV-extracted"
           unzip -o "$ZIP_PATH" -d "FUCK-IOS-DEV-extracted"
-          echo "Extracted files:"
-          find "FUCK-IOS-DEV-extracted" -type f | head -200
+          echo "Extracted file count:"
+          find "FUCK-IOS-DEV-extracted" -type f | wc -l
 
       - name: Commit extracted files
         shell: bash
