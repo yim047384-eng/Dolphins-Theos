@@ -1,0 +1,9 @@
+Package: com.deni.dolphins
+Name: Dolphins
+Version: 1.0.0
+Architecture: iphoneos-arm64
+Description: Dolphins tweak
+Maintainer: DENI
+Author: DENI
+Section: Tweaks
+Depends: mobilesubstrate
