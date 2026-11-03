@@ -15,13 +15,21 @@ jobs:
         with:
           submodules: true
 
-      - name: Pre-create Theos SDKs directory
-        run: mkdir -p theos/sdks
-
-      - name: Setup Theos
-        uses: Randomblock1/theos-action@v1
-        with:
-          theos-dir: 'theos'
+      - name: Setup Theos manually
+        run: |
+          # Clone Theos with submodules
+          git clone --recursive https://github.com/theos/theos.git $HOME/theos
+          
+          # Download the iOS SDKs
+          curl -L https://github.com/theos/sdks/archive/master.zip -o /tmp/sdks.zip
+          unzip -q /tmp/sdks.zip -d /tmp
+          
+          # Move the SDKs into the Theos directory
+          mkdir -p $HOME/theos/sdks
+          mv /tmp/sdks-master/*.sdk $HOME/theos/sdks/
+          
+          # Export THEOS so your Makefile can see it
+          echo "THEOS=$HOME/theos" >> $GITHUB_ENV
 
       - name: Debug THEOS path
         run: |
