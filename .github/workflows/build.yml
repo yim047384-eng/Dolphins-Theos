@@ -1,40 +1,54 @@
 
-name: Build iOS Dylib
+
+name: Test Source Files
 
 on:
   workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: macos-14
+  test:
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout source
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Check Xcode
+      - name: Check source folder
+        shell: bash
         run: |
-          xcodebuild -version
-          xcrun --sdk iphoneos --show-sdk-path
+          set -euo pipefail
 
-      - name: Build dylib
+          SOURCE_DIR="FUCK-IOS-DEV-extracted/FUCK IOS DEV"
+
+          if [ ! -d "$SOURCE_DIR" ]; then
+            echo "Source folder not found"
+            exit 1
+          fi
+
+          echo "Source folder found"
+
+      - name: Verify source files
+        shell: bash
         run: |
-          mkdir -p build
+          set -euo pipefail
 
-          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          SOURCE_DIR="FUCK-IOS-DEV-extracted/FUCK IOS DEV"
 
-          clang \
-            -arch arm64 \
-            -isysroot "$SDK" \
-            -miphoneos-version-min=13.0 \
-            -dynamiclib \
-            -fobjc-arc \
-            -framework Foundation \
-            -o build/CustomLibrary.dylib \
-            FUCK-IOS-DEV-extracted/FUCK IOS DEV/ImGuiDrawView.mm
+          for FILE in \
+            "ImGuiDrawView.mm" \
+            "Makefile" \
+            "Make.sh" \
+            "SDK.hpp" \
+            "Iconcpp.h"
+          do
+            if [ -f "$SOURCE_DIR/$FILE" ]; then
+              echo "FOUND: $FILE"
+            else
+              echo "MISSING: $FILE"
+            fi
+          done
 
-      - name: Upload dylib
-        uses: actions/upload-artifact@v4
-        with:
-          name: iOS-Dylib
-          path: build/CustomLibrary.dylib
+      - name: List source directories
+        run: |
+          find "FUCK-IOS-DEV-extracted/FUCK IOS DEV" \
+            -maxdepth 2 -type d
