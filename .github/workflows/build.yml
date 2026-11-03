@@ -1,4 +1,4 @@
-name: Build Dolphins
+name: Build Dolphins Dylib
 
 on:
   push:
@@ -23,13 +23,20 @@ jobs:
         with:
           theos-dir: 'theos'
 
-      - name: Build package
+      - name: Debug THEOS path
         run: |
-          make clean || echo "clean failed, continuing"
-          make package FINALPACKAGE=1
+          echo "THEOS = $THEOS"
+          ls -la "$THEOS/makefiles/common.mk" || echo "COMMON.MK MISSING"
+          ls -la "$THEOS/makefiles/library.mk" || echo "LIBRARY.MK MISSING"
 
-      - name: Upload deb
+      - name: Build dylib
+        run: |
+          make clean || echo "clean skipped"
+          make
+
+      - name: Upload dylib
         uses: actions/upload-artifact@v4
         with:
-          name: Dolphins-deb
-          path: packages/*.deb
+          name: Dolphins-dylib
+          path: .theos/obj/arm64/Dolphins.dylib
+          if-no-files-found: warn
