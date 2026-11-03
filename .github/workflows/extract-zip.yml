@@ -1,0 +1,40 @@
+name: Extract uploaded ZIP
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'FUCK IOS DEV.zip'
+      - '.github/workflows/extract-zip.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract ZIP on GitHub runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP_PATH="FUCK IOS DEV.zip"
+          test -f "$ZIP_PATH"
+          mkdir -p "FUCK-IOS-DEV-extracted"
+          unzip -o "$ZIP_PATH" -d "FUCK-IOS-DEV-extracted"
+          echo "Extracted files:"
+          find "FUCK-IOS-DEV-extracted" -type f | head -200
+
+      - name: Commit extracted files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "FUCK-IOS-DEV-extracted"
+          git commit -m "Extract FUCK IOS DEV archive" || echo "No extracted changes to commit"
+          git push
