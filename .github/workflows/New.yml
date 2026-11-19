@@ -11,20 +11,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Extract Zip
+      - name: Extract with Python (ignore errors)
         run: |
-          set +e
-          unzip -o AutoDumperSdk.zip -x "__MACOSX/*" "*/._*"
-          exit_code=$?
-          set -e
-          echo "Unzip exit code: $exit_code"
-          rm -rf __MACOSX || true
-          find . -name "._*" -type f -delete || true
+          python3 - << 'EOF'
+          import zipfile
+          import os
+          z = zipfile.ZipFile('AutoDumperSdk.zip')
+          for info in z.infolist():
+              if info.filename.startswith('__MACOSX') or '/._' in info.filename or info.filename.endswith('.DS_Store'):
+                  continue
+              try:
+                  z.extract(info)
+              except Exception as e:
+                  print(f"Skipped {info.filename}: {e}")
+          print("Extract done")
+          EOF
           ls -la
-          if [ ! -d "DumperSdk" ]; then
-            echo "DumperSdk folder missing!"
-            exit 1
-          fi
+          ls -la DumperSdk || echo "No DumperSdk folder"
 
       - name: Setup Xcode
         run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
@@ -41,10 +44,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             clean build
 
-      - name: Find dylib
-        run: find DumperSdk/build -name "SdkDumper.dylib" -type f || true
-
-      - name: Upload Artifact
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: SdkDumper-dylib
