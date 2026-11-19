@@ -5,32 +5,15 @@ on:
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: macos-14
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Extract Zip with Python only
+      - name: Extract
         run: |
-          python3 << 'PY'
-          import zipfile, os, sys
-          try:
-              with zipfile.ZipFile('AutoDumperSdk.zip', 'r') as z:
-                  for member in z.namelist():
-                      if member.startswith('__MACOSX') or '/._' in member or member.endswith('.DS_Store'):
-                          continue
-                      try:
-                          z.extract(member)
-                      except Exception as e:
-                          print(f"Skip: {member} -> {e}")
-              print("Python extract success")
-          except Exception as e:
-              print(f"Zip open failed: {e}")
-              sys.exit(1)
-          PY
-          ls -la
-          ls -la DumperSdk || { echo "DumperSdk missing"; exit 1; }
+          unzip -o AutoDumperSdk.zip
+          ls -la DumperSdk
 
       - name: Setup Xcode
         run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
@@ -38,16 +21,9 @@ jobs:
       - name: Build
         working-directory: DumperSdk
         run: |
-          xcodebuild \
-            -project SdkDumper.xcodeproj \
-            -target SdkDumper \
-            -configuration Release \
-            -sdk iphoneos \
-            -arch arm64 \
-            CODE_SIGNING_ALLOWED=NO \
-            clean build
+          xcodebuild -project SdkDumper.xcodeproj -target SdkDumper -configuration Release -sdk iphoneos -arch arm64 CODE_SIGNING_ALLOWED=NO clean build
 
-      - name: Upload dylib
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: SdkDumper-dylib
