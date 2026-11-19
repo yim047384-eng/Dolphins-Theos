@@ -1,4 +1,4 @@
-name: Unzip and Clean Source
+name: Unzip to Repo
 
 on:
   workflow_dispatch:
@@ -10,43 +10,23 @@ jobs:
   extract:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract and Clean
+      - name: Unzip Source
         run: |
-          echo "Extracting AutoDumperSdk.zip..."
-          # Use Python to avoid symlink errors
-          python3 - << 'EOF'
-          import zipfile, os, shutil
-          z = zipfile.ZipFile("AutoDumperSdk.zip")
-          for info in z.infolist():
-              name = info.filename
-              if name.startswith("__MACOSX") or "/._" in name or name.endswith(".DS_Store"):
-                  continue
-              try:
-                  z.extract(info)
-              except Exception as e:
-                  print(f"Skipped {name}: {e}")
-          print("Extract complete")
-          EOF
+          echo "Unzipping..."
+          unzip -q AutoDumperSdk.zip -d .
+          echo "Removing unnecessary files..."
+          rm -rf __MACOSX
+          rm AutoDumperSdk.zip
           
-          # Extra cleanup
-          rm -rf __MACOSX || true
-          find . -name "._*" -type f -delete || true
-          find . -name ".DS_Store" -delete || true
-          rm -f AutoDumperSdk.zip || true
-          
-          echo "Final structure:"
-          ls -la
-          ls -la DumperSdk || echo "DumperSdk missing"
-
-      - name: Commit cleaned files
+      - name: Commit and Push Extracted Files
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add .
-          git diff --staged --quiet || git commit -m "Extracted and cleaned AutoDumperSdk source"
+          git commit -m "Extracted source files from zip and cleaned up"
           git push
