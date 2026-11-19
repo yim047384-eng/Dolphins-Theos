@@ -3,7 +3,8 @@
 #include "GameProfile.hpp"
 
 // PUBGM 3.1.0
-// UE 4.23 — FNamePool: FALSE (GNames style, function pointer)
+// UE 4.18 — GNames mode (IsUsingFNamePool = false)
+// Manual offsets — no pattern scan
 
 class PUBGMProfile : public IGameProfile
 {
@@ -22,7 +23,7 @@ public:
         };
     }
 
-    bool Pubgmxx() const override { return true; }
+    bool Pubgmxx()   const override { return true;  }
     bool Farlightxx() const override { return false; }
 
     MemoryFileInfo GetExecutableInfo() const override
@@ -30,7 +31,6 @@ public:
         return KittyMemory::getMemoryFileInfo(ENCRYPT("ShadowTrackerExtra"));
     }
 
-    // GNames function pointer — not FNamePool
     bool IsUsingFNamePool() const override
     {
         return false;
@@ -38,19 +38,21 @@ public:
 
     uintptr_t GetGUObjectArrayPtr() const override
     {
-        // manual offset — GUObjectArray: 0x109ABC718
-        const mach_header *hdr = GetExecutableInfo().header;
-        if (!hdr) return 0;
-        return (uintptr_t)hdr + 0x109ABC718;
+        // GUObjectArray offset: 0x109ABC718
+        // address = ASLR slide already applied — add static offset directly
+        auto info = GetExecutableInfo();
+        if (!info.address) return 0;
+        return info.address + 0x109ABC718;
     }
 
     uintptr_t GetNamesPtr() const override
     {
-        // GNameFunction: 0x104734D98 — call it to get TNameEntryArray*
-        const mach_header *hdr = GetExecutableInfo().header;
-        if (!hdr) return 0;
+        // GNameFunction offset: 0x104734D98
+        // this is a function pointer — call it to get TNameEntryArray*
+        auto info = GetExecutableInfo();
+        if (!info.address) return 0;
 
-        uintptr_t fn_addr = (uintptr_t)hdr + 0x104734D98;
+        uintptr_t fn_addr = info.address + 0x104734D98;
         using GetNamesFn = uintptr_t(*)();
         auto fn = reinterpret_cast<GetNamesFn>(fn_addr);
         return fn();
@@ -58,7 +60,7 @@ public:
 
     uintptr_t GetGworld() const override
     {
-        // GWorldData: invalid in dump — resolved via GUObject scan
+        // resolved internally via GUObject scan — no manual offset needed
         return 0;
     }
 
@@ -66,15 +68,15 @@ public:
     {
         struct
         {
-            uint16 Stride          = 0;
-            uint16 FNamePoolBlocks = 0;
+            uint16 Stride          = 0;     // FNamePool nahi — ignored
+            uint16 FNamePoolBlocks = 0;     // FNamePool nahi — ignored
             uint16 FNameMaxSize    = 0xff;
-            struct { uint16 Size = 0x18; } FUObjectItem;
-            struct { uint16 Number = 4;  } FName;
-            struct { uint16 Name   = 0xC;} FNameEntry;
+            struct { uint16 Size         = 0x18; } FUObjectItem;
+            struct { uint16 Number       = 4;    } FName;
+            struct { uint16 Name         = 0xC;  } FNameEntry;
             struct
             {
-                uint16 Info       = 0;
+                uint16 Info       = 0;      // FNamePool nahi — ignored
                 uint16 WideBit    = 0;
                 uint16 LenBit     = 0;
                 uint16 HeaderSize = 0;
@@ -92,10 +94,10 @@ public:
             struct { uint16 Next = 0x28; } UField;
             struct
             {
-                uint16 SuperStruct   = 0x30;
-                uint16 Children      = 0x38;
-                uint16 ChildrenProps = 0;
-                uint16 PropertiesSize= 0x40;
+                uint16 SuperStruct    = 0x30;
+                uint16 Children       = 0x38;
+                uint16 ChildrenProps  = 0;
+                uint16 PropertiesSize = 0x40;
             } UStruct;
             struct { uint16 Names = 0x40; } UEnum;
             struct
@@ -115,11 +117,11 @@ public:
             } FField;
             struct
             {
-                uint16 ArrayDim       = 0;
-                uint16 ElementSize    = 0;
-                uint16 PropertyFlags  = 0;
-                uint16 Offset_Internal= 0;
-                uint16 Size           = 0;
+                uint16 ArrayDim        = 0;
+                uint16 ElementSize     = 0;
+                uint16 PropertyFlags   = 0;
+                uint16 Offset_Internal = 0;
+                uint16 Size            = 0;
             } FProperty;
             struct
             {
