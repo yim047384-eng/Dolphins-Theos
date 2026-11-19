@@ -11,9 +11,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Extract Zip
+      - name: Extract Zip (ignore symlinks)
         run: |
-          unzip -o AutoDumperSdk.zip
+          unzip -o AutoDumperSdk.zip -x "__MACOSX/*" || true
+          # Remove any leftover Mac junk
+          rm -rf __MACOSX
           ls -la
 
       - name: Select Xcode
@@ -21,7 +23,7 @@ jobs:
 
       - name: Build dylib
         run: |
-          cd DumperSdk
+          cd DumperSdk || cd .
           xcodebuild \
             -project SdkDumper.xcodeproj \
             -target SdkDumper \
@@ -32,10 +34,10 @@ jobs:
             clean build
 
       - name: Find output
-        run: find . -name "*.dylib" -type f
+        run: find . -name "SdkDumper.dylib" -type f
 
       - name: Upload SdkDumper.dylib
         uses: actions/upload-artifact@v4
         with:
           name: SdkDumper-dylib
-          path: DumperSdk/build/**/SdkDumper.dylib
+          path: "**/SdkDumper.dylib"
