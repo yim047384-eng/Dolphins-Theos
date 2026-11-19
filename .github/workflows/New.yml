@@ -11,19 +11,24 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Extract Zip (ignore symlinks)
+      - name: Extract Zip safely
         run: |
-          unzip -o AutoDumperSdk.zip -x "__MACOSX/*" || true
-          # Remove any leftover Mac junk
-          rm -rf __MACOSX
+          # Force extract and ignore errors
+          unzip -o AutoDumperSdk.zip -x "__MACOSX/*" "*/._*" || true
+          # Clean Mac junk
+          find . -name "__MACOSX" -type d -exec rm -rf {} + 2>/dev/null || true
+          find . -name "._*" -type f -delete 2>/dev/null || true
           ls -la
+          ls -la DumperSdk || echo "DumperSdk folder not found"
 
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
 
       - name: Build dylib
         run: |
-          cd DumperSdk || cd .
+          if [ -d "DumperSdk" ]; then
+            cd DumperSdk
+          fi
           xcodebuild \
             -project SdkDumper.xcodeproj \
             -target SdkDumper \
@@ -33,7 +38,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             clean build
 
-      - name: Find output
+      - name: Find and upload
         run: find . -name "SdkDumper.dylib" -type f
 
       - name: Upload SdkDumper.dylib
