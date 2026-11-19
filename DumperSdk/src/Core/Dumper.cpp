@@ -1,0 +1,467 @@
+#include "Dumper.hpp"
+
+#include "../../includes/fmt/core.h"
+#include "../../includes/mahoa.h"
+#include "../../includes/obf.h"
+#include "../../includes/nlohmann/json.hpp"
+using json = nlohmann::json;
+
+#include "wrappers.hpp"
+
+#include "../../includes/KittyMemory/KittyMemory.hpp"
+#include "../../includes/KittyMemory/KittyScanner.hpp"
+
+extern std::string mygame;
+extern std::string fixv;
+extern std::string fixn;
+uintptr_t GUObjectsArrayPtr;
+uintptr_t GWorldPtr;
+const mach_header *hdr;
+
+namespace Dumper
+{
+
+	namespace JsonGen
+	{
+		struct IdaFunction
+		{
+			std::string Parent;
+			std::string Name;
+			uint64 Address = 0;
+            
+		};
+
+		static std::vector<IdaFunction> idaFunctions;
+		static unsigned long __pagezero_size = 0;
+
+		void to_json(json &j, const IdaFunction &f)
+		{
+			if (f.Parent.empty() || f.Parent == "None" || f.Parent == "null")
+				return;
+			if (f.Name.empty() || f.Name == "None" || f.Name == "null")
+				return;
+
+			std::string fname = ioutils::replace_specials(f.Parent, '_');
+			fname += "$$";
+			fname += ioutils::replace_specials(f.Name, '_');
+
+			j = json{{"Name", fname}, {"Address", f.Address - __pagezero_size}};
+		}
+	};
+
+	DumpStatus InitProfile(IGameProfile *gameProfile)
+	{
+       
+        
+        hdr = gameProfile->GetExecutableInfo().header;
+		Profile::BaseAddress = gameProfile->GetExecutableInfo().address;
+		if (Profile::BaseAddress == 0)
+			return UE_DS_ERROR_EXE_NOT_FOUND;
+
+		GetSegmentData(gameProfile->GetExecutableInfo().header, AY_OBFUSCATE("__PAGEZERO"), &JsonGen::__pagezero_size);
+
+		Offsets *p_offsets = gameProfile->GetOffsets();
+		if (!p_offsets)
+			return UE_DS_ERROR_INIT_OFFSETS;
+
+		Profile::offsets = *(Offsets *)p_offsets;
+
+		Profile::isUsingFNamePool = gameProfile->IsUsingFNamePool();
+        Profile::Pubgmxx = gameProfile->Pubgmxx();
+        Profile::Farlightxx = gameProfile->Farlightxx();
+
+		if (Profile::isUsingFNamePool)
+		{
+			Profile::NamePoolDataPtr = gameProfile->GetNamesPtr();
+			if (Profile::NamePoolDataPtr == 0)
+				return UE_DS_ERROR_INIT_NAMEPOOL;
+		}
+		else
+		{
+			Profile::GNamesPtr = gameProfile->GetNamesPtr();
+			if (Profile::GNamesPtr == 0)
+				return UE_DS_ERROR_INIT_GNAMES;
+		}
+
+        GWorldPtr = gameProfile->GetGworld();
+		 GUObjectsArrayPtr = gameProfile->GetGUObjectArrayPtr();
+		if (GUObjectsArrayPtr == 0)
+			return UE_DS_ERROR_INIT_GUOBJECTARRAY;
+
+		Profile::ObjObjectsPtr = GUObjectsArrayPtr + Profile::offsets.FUObjectArray.ObjObjects;
+		if (!vm_rpm_ptr((void *)Profile::ObjObjectsPtr, &Profile::ObjObjects, sizeof(TUObjectArray)))
+			return UE_DS_ERROR_INIT_GUOBJECTARRAY;
+
+		return UE_DS_NONE;
+	}
+
+	DumpStatus Dump(DumpArgs *args, IGameProfile *profile)
+	{
+        
+        
+        
+       
+		auto exe_info = profile->GetExecutableInfo();
+		if (!exe_info.name || exe_info.address == 0)
+			return UE_DS_ERROR_EXE_NOT_FOUND;
+
+		auto profile_init_status = InitProfile(profile);
+		if (profile_init_status != UE_DS_NONE)
+			return profile_init_status;
+
+		std::string logfile_path = args->dump_dir;
+		logfile_path += AY_OBFUSCATE("/Offsets.txt");
+		File logfile(logfile_path.c_str(), "w");
+		if (!logfile)
+			return UE_DS_ERROR_IO_OPERATION;
+
+       
+        fmt::print(logfile, ENCRYPT("Game ID: {}\n"), mygame.c_str());
+        
+        
+        
+        
+		fmt::print(logfile, ENCRYPT("Executable Path: {}\n"), exe_info.name);
+		if (JsonGen::__pagezero_size > 0)
+		{
+			fmt::print(logfile, ENCRYPT("__PAGEZERO Size: {:#x}\n"), JsonGen::__pagezero_size);
+		}
+		else
+		{
+			fmt::print(logfile, ENCRYPT("__PAGEZERO not available\n"));
+            
+		}
+        
+        
+        fmt::print(logfile, ENCRYPT("\n\n==========================\n"));
+        fmt::print(logfile, ENCRYPT("Offsets Dump By Telegram @CheatBot_Owner\n"));
+        fmt::print(logfile, ENCRYPT("==========================\n\n"));
+        
+        
+        
+       
+        uintptr_t basex =KittyMemory::getMemoryFileInfo(ENCRYPT("ShadowTrackerExtra")).address;
+        const int step = 2;
+        
+        const char *bytegworldf = AY_OBFUSCATE("\x22\x01\x40\xBD\x03\x10\x2D\x1E\x42\x08\x23\x1E\x03\x10\x2A\x1E\x21\x08\x23\x1E\x41\x28\x21\x1E\x21\x01\x00\xBD");
+        const char *maskgworldf = AY_OBFUSCATE("xxxxxxxxxxxxxxxxxxxxxxxxxx?x");
+        const int stepCheatBot = 0x64;
+        uintptr_t gworldf_address = KittyScanner::findBytesFirst(hdr, AY_OBFUSCATE("__TEXT"), bytegworldf, maskgworldf);
+        gworldf_address += stepCheatBot;
+       
+        const char *bytegnamef = AY_OBFUSCATE("\x60\x1E\x10\x79\xE0\x03\x13\xAA\xFD\x7B\x41\xA9\xF4\x4F\xC2\xA8\xC0\x03\x5F\xD6");
+        const char *maskgnamef = AY_OBFUSCATE("xxxxxxxxxxxxxxxxxxxx");
+        const int stepfun = 0x14;
+        uintptr_t gnameff_addressx = KittyScanner::findBytesFirst(hdr, AY_OBFUSCATE("__TEXT"), bytegnamef, maskgnamef);
+        gnameff_addressx += stepfun;
+        
+        const char *bytelineifs = AY_OBFUSCATE("\xFF\x03\x06\xD1\xE9\x23\x14\x6D\xF6\x57\x15\xA9\xF4\x4F\x16\xA9\xFD\x7B\x17\xA9\xFD\xC3\x05\x91\xF3\x03\x01\xAA\xA0\x07\x38\x2D\xA2\x83\x1C\xBC");
+        const char *masklineifs = AY_OBFUSCATE("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+        uintptr_t lineifs_addressx = KittyScanner::findBytesFirst(hdr, AY_OBFUSCATE("__TEXT"), bytelineifs, masklineifs);
+        
+            const char *bytes = AY_OBFUSCATE("\x00\x00\x00\x94\x00\x00\x03\x00\x00\x00\x00\x91\xE8\xF3\x40\x39\x88\x02\x00\x35");
+            const char *mask = AY_OBFUSCATE("???x??x????xxxxxxx?x");
+            const int stepx = 4;
+            uintptr_t insn_address = KittyScanner::findBytesFirst(hdr, AY_OBFUSCATE("__TEXT"), bytes, mask);
+            insn_address += stepx;
+            int64 adrp_pc_rel = 0;
+            int32 add_imm12 = 0;
+            const int page_size = 4096;
+            const uintptr_t page_off = (insn_address & ~(page_size - 1));
+            uint32 adrp_insn = vm_rpm_ptr<uint32>((void *)(insn_address));
+            uint32 add_insn = vm_rpm_ptr<uint32>((void *)(insn_address + 4));
+        KittyArm64::decode_adr_imm(adrp_insn, &adrp_pc_rel);
+        add_imm12 = KittyArm64::decode_addsub_imm(add_insn);
+        uintptr_t GWorldData = (page_off + adrp_pc_rel + add_imm12);
+           
+        const char *bytescc = AY_OBFUSCATE("\x88\x02\x00\x37\x00\x00\x02\x00\x00\x00\x00\x91\x00\x00\x00\x94\x08\x00\x40\xF9");
+        const char *maskcc = AY_OBFUSCATE("xx?x??x????x???xx?xx");
+        const int stepxcc = 4;
+        uintptr_t insn_addresscc = KittyScanner::findBytesFirst(hdr, AY_OBFUSCATE("__TEXT"), bytescc, maskcc);
+        insn_addresscc += stepxcc;
+        int64 adrp_pc_relcc = 0;
+        int32 add_imm12cc = 0;
+        const int page_sizecc = 4096;
+        const uintptr_t page_offcc = (insn_addresscc & ~(page_sizecc - 1));
+        uint32 adrp_insncc = vm_rpm_ptr<uint32>((void *)(insn_addresscc));
+        uint32 add_insncc = vm_rpm_ptr<uint32>((void *)(insn_addresscc + 4));
+    KittyArm64::decode_adr_imm(adrp_insncc, &adrp_pc_relcc);
+    add_imm12cc = KittyArm64::decode_addsub_imm(add_insncc);
+        uintptr_t gnamedata = (page_offcc + adrp_pc_relcc + add_imm12cc);
+        
+        
+        
+        const char *linefarlight = AY_OBFUSCATE("\xFF\xC3\x03\xD1\xE9\x23\x0B\x6D\xF6\x57\x0C\xA9\xF4\x4F\x0D\xA9\xFD\x7B\x0E\xA9\xFD\x83\x03\x91\xA0\x07\x38\x2D\xA2\x83\x1C\xBC\xA1\x0D\x00\xB4");
+        const char *masklinefar = AY_OBFUSCATE("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx?x");
+        uintptr_t lineofsfar = KittyScanner::findBytesFirst(hdr, AY_OBFUSCATE("__TEXT"), linefarlight, masklinefar);
+        
+    
+        
+       
+        if (Profile::Pubgmxx){
+            
+        fmt::print(logfile, ENCRYPT("GNameFunction: {:#0x}\n"), gnameff_addressx-basex);
+        
+        fmt::print(logfile, ENCRYPT("GNameData: {:#0x}\n"), gnamedata-basex);
+        
+        fmt::print(logfile, ENCRYPT("GWorldFunction: {:#0x}\n"), gworldf_address-basex);
+        
+        fmt::print(logfile, ENCRYPT("GWorldData: {:#0x}\n"), GWorldData-basex);
+        
+        fmt::print(logfile, ENCRYPT("LineOfSightTo_Func: {:#0x}\n"), lineifs_addressx-basex);
+        
+         fmt::print(logfile, ENCRYPT("GUObjectArray: {:#0x}\n"), GUObjectsArrayPtr-basex);
+        }
+        else if (Profile::Farlightxx){
+
+            if (!Profile::isUsingFNamePool){
+                fmt::print(logfile, ENCRYPT("GNames : {:#0x}\n"),Profile::GNamesPtr-Profile::BaseAddress);
+        }
+            else{
+                fmt::print(logfile, ENCRYPT("FNamePool : {:#0x}\n"),Profile::NamePoolDataPtr-Profile::BaseAddress);
+            }
+            
+             fmt::print(logfile, ENCRYPT("GUObjectArray: {:#0x}\n"), GUObjectsArrayPtr-Profile::BaseAddress);
+            fmt::print(logfile, ENCRYPT("GWorld: {:#0x}\n"), GWorldPtr-Profile::BaseAddress);
+            fmt::print(logfile, ENCRYPT("LineOfSightTo: {:#0x}\n"), lineofsfar-Profile::BaseAddress);
+           
+        }
+        else{
+            
+            if (!Profile::isUsingFNamePool){
+                fmt::print(logfile, ENCRYPT("GNames : {:#0x}\n"),Profile::GNamesPtr-Profile::BaseAddress);
+        }
+            else{
+                fmt::print(logfile, ENCRYPT("FNamePool : {:#0x}\n"),Profile::NamePoolDataPtr-Profile::BaseAddress);
+            }
+            
+             fmt::print(logfile, ENCRYPT("GUObjectArray: {:#0x}\n"), GUObjectsArrayPtr-Profile::BaseAddress);
+        }
+      
+       
+        
+        
+        
+        
+        fmt::print(logfile, ENCRYPT("\n\n==========================\n"));
+        fmt::print(logfile, ENCRYPT("Offsets Dump By Telegram @CheatBot_Owner\n"));
+        fmt::print(logfile, ENCRYPT("==========================\n\n"));
+        
+        
+        
+        
+        
+		fmt::print(logfile, ENCRYPT("BaseAddress: {:#08x}\n"), Profile::BaseAddress);
+				if (!Profile::isUsingFNamePool)
+		{
+            fmt::print(logfile, ENCRYPT("FNamePool : False\n"));
+            
+		}
+		else
+		{
+            fmt::print(logfile, ENCRYPT("FNamePool : True\n"));
+		}
+        
+        
+        
+        fmt::print(logfile, ENCRYPT("\n\n==========================\n"));
+        fmt::print(logfile, ENCRYPT("Offsets Dump By Telegram @CheatBot_Owner\n"));
+        fmt::print(logfile, ENCRYPT("==========================\n\n"));
+        
+        
+        
+		fmt::print(logfile, ENCRYPT("Test Dumping First 10 Name Enteries\n"));
+		for (int i = 0; i < 10; i++)
+		{
+			fmt::print(logfile, ENCRYPT("GetNameByID({}): {}\n"), i, GetNameByID(i));
+		}
+		fmt::print(logfile, ENCRYPT("==========================\n"));
+
+		fmt::print(logfile, ENCRYPT("ObjObjects: {:#08x}\n"), Profile::ObjObjectsPtr);
+		fmt::print(logfile, ENCRYPT("ObjObjects Num: {}\n"), Profile::ObjObjects.GetNumElements());
+		fmt::print(logfile, ENCRYPT("ObjObjects Max: {}\n"), Profile::ObjObjects.GetMaxElements());
+		fmt::print(logfile, ENCRYPT("==========================\n"));
+
+		std::string objfile_path = args->dump_dir;
+		objfile_path += AY_OBFUSCATE("/objects_dump.txt");
+		File objfile(objfile_path.c_str(), "w");
+		if (!objfile)
+			return UE_DS_ERROR_IO_OPERATION;
+
+		std::function<void(UE_UObject)> objdump_callback = nullptr;
+		if (args->dump_objects)
+		{
+			objdump_callback = [&objfile](UE_UObject object)
+			{
+                fmt::print(objfile, ENCRYPT("\nDumper Tool By Telegram @CheatBot_Owner\n"));
+				fmt::print(objfile, "{}\n", object.GetName());
+			};
+		}
+
+		if (!args->dump_full && !args->dump_headers && !args->gen_functions_script)
+		{
+			if (objdump_callback)
+			{
+				Profile::ObjObjects.ForEachObject(objdump_callback);
+			}
+			return UE_DS_SUCCESS;
+		}
+
+		std::unordered_map<uint8 *, std::vector<UE_UObject>> packages;
+		std::function<void(UE_UObject)> callback;
+		callback = [&objdump_callback, &packages](UE_UObject object)
+		{
+			if (object.IsA<UE_UFunction>() || object.IsA<UE_UStruct>() || object.IsA<UE_UEnum>())
+			{
+				auto packageObj = object.GetPackageObject();
+				packages[packageObj].push_back(object);
+			}
+			if (objdump_callback)
+				objdump_callback(object);
+		};
+
+		Profile::ObjObjects.ForEachObject(callback);
+
+		if (!packages.size())
+		{
+			fmt::print(logfile, ENCRYPT("Error: Packages are empty.\n"));
+			return UE_DS_ERROR_EMPTY_PACKAGES;
+		}
+
+		int packages_saved = 0;
+		std::string packages_unsaved{};
+
+		int classes_saved = 0;
+		int structs_saved = 0;
+		int enums_saved = 0;
+
+		static bool processInternal_once = false;
+		
+		for (UE_UPackage package : packages)
+		{
+			package.Process();
+			if (package.Save(args->dump_full ? args->dump_dir.c_str() : nullptr, args->dump_headers ? args->dump_headers_dir.c_str() : nullptr))
+			{
+				packages_saved++;
+				classes_saved += package.Classes.size();
+				structs_saved += package.Structures.size();
+				enums_saved += package.Enums.size();
+
+				for (const auto &cls : package.Classes)
+				{
+					if (!cls.Functions.size())
+						continue;
+
+					for (const auto &func : cls.Functions)
+					{
+						// UObject::ProcessInternal for blueprint functions
+						if(!processInternal_once && (func.EFlags & FUNC_BlueprintEvent))
+						{
+							JsonGen::idaFunctions.push_back({ENCRYPT("UObject"), ENCRYPT("ProcessInternal"), func.Func - Profile::BaseAddress});
+							processInternal_once = true;
+						}
+
+						if (func.EFlags & FUNC_Native)
+						{
+							std::string execFuncName = "exec";
+							execFuncName += func.Name;
+							JsonGen::idaFunctions.push_back({cls.Name, execFuncName, func.Func - Profile::BaseAddress});
+						}
+					}
+				}
+
+				for (const auto &st : package.Structures)
+				{
+					if (!st.Functions.size())
+						continue;
+
+					for (const auto &func : st.Functions)
+					{
+						if (func.EFlags & FUNC_Native)
+						{
+							std::string execFuncName = "exec";
+							execFuncName += func.Name;
+							JsonGen::idaFunctions.push_back({st.Name, execFuncName, func.Func - Profile::BaseAddress});
+						}
+					}
+				}
+			}
+			else
+			{
+				packages_unsaved += "\t";
+				packages_unsaved += (package.GetObject().GetName() + ",\n");
+			}
+		}
+
+		fmt::print(logfile, ENCRYPT("Saved packages: {}\nSaved classes: {}\nSaved structs: {}\nSaved enums: {}\n"), packages_saved, classes_saved, structs_saved, enums_saved);
+
+		if (packages_unsaved.size())
+		{
+			packages_unsaved.erase(packages_unsaved.size() - 2);
+			fmt::print(logfile, ENCRYPT("Unsaved packages: [\n{}\n]\n"), packages_unsaved);
+		}
+
+		fmt::print(logfile, ENCRYPT("==========================\n"));
+
+		if (args->gen_functions_script && JsonGen::idaFunctions.size())
+		{
+			fmt::print(logfile, ENCRYPT("Generating json...\nFunctions: {}\n"), JsonGen::idaFunctions.size());
+            
+            
+            fmt::print(logfile, ENCRYPT("\n\n==========================\n"));
+            fmt::print(logfile, ENCRYPT("Offsets Dump By Telegram @CheatBot_Owner\n"));
+            fmt::print(logfile, ENCRYPT("==========================\n\n"));
+            
+            
+            
+			json js;
+			for (auto &idf : JsonGen::idaFunctions)
+			{
+				js["Functions"].push_back(idf);
+			}
+
+			std::string jsfile_path = args->dump_dir;
+			jsfile_path += AY_OBFUSCATE("/script.json");
+			File jsfile(jsfile_path.c_str(), "w");
+			if (!jsfile)
+				return UE_DS_ERROR_IO_OPERATION;
+            fmt::print(jsfile, ENCRYPT("\n#Dumper Tool By Telegram @CheatBot_Owner\n"));
+			fmt::print(jsfile, "{}", js.dump(4));
+            fmt::print(jsfile, ENCRYPT("\n#Dumper Tool By Telegram @CheatBot_Owner\n"));
+		}
+
+		return UE_DS_SUCCESS;
+           
+	}
+
+	std::string DumpStatusToStr(DumpStatus ds)
+	{
+		switch (ds)
+		{
+		case UE_DS_NONE:
+			return ENCRYPT("DS_NONE");
+		case UE_DS_SUCCESS:
+			return ENCRYPT("DS_SUCCESS");
+		case UE_DS_ERROR_EXE_NAME_NULL:
+			return ENCRYPT("DS_ERROR_EXE_NAME_NULL");
+		case UE_DS_ERROR_EXE_NOT_FOUND:
+			return ENCRYPT("DS_ERROR_EXE_NOT_FOUND");
+		case UE_DS_ERROR_IO_OPERATION:
+			return ENCRYPT("DS_ERROR_IO_OPERATION");
+		case UE_DS_ERROR_INIT_GNAMES:
+			return ENCRYPT("DS_ERROR_INIT_GNAMES");
+		case UE_DS_ERROR_INIT_NAMEPOOL:
+			return ENCRYPT("DS_ERROR_INIT_NAMEPOOL");
+		case UE_DS_ERROR_INIT_GUOBJECTARRAY:
+			return ENCRYPT("DS_ERROR_INIT_GUOBJECTARRAY");
+		case UE_DS_ERROR_INIT_OFFSETS:
+			return ENCRYPT("DS_ERROR_INIT_OFFSETS");
+		case UE_DS_ERROR_EMPTY_PACKAGES:
+			return ENCRYPT("DS_ERROR_EMPTY_PACKAGES");
+		default:
+			break;
+		}
+		return ENCRYPT("UNKNOWN");
+	}
+
+}
