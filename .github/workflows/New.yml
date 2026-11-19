@@ -1,0 +1,41 @@
+name: Build AutoDumperSdk
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract Zip
+        run: |
+          unzip -o AutoDumperSdk.zip
+          ls -la
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+
+      - name: Build dylib
+        run: |
+          cd DumperSdk
+          xcodebuild \
+            -project SdkDumper.xcodeproj \
+            -target SdkDumper \
+            -configuration Release \
+            -sdk iphoneos \
+            -arch arm64 \
+            CODE_SIGNING_ALLOWED=NO \
+            clean build
+
+      - name: Find output
+        run: find . -name "*.dylib" -type f
+
+      - name: Upload SdkDumper.dylib
+        uses: actions/upload-artifact@v4
+        with:
+          name: SdkDumper-dylib
+          path: DumperSdk/build/**/SdkDumper.dylib
