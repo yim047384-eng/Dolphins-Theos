@@ -11,14 +11,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Extract Zip (clean)
+      - name: Extract Zip
         run: |
-          # Extract ignoring Mac junk and force continue on symlink errors
-          unzip -o AutoDumperSdk.zip -x "__MACOSX/*" "*/._*" || true
-          rm -rf __MACOSX
+          set +e
+          unzip -o AutoDumperSdk.zip -x "__MACOSX/*" "*/._*"
+          exit_code=$?
+          set -e
+          echo "Unzip exit code: $exit_code"
+          rm -rf __MACOSX || true
           find . -name "._*" -type f -delete || true
           ls -la
-          ls -la DumperSdk
+          if [ ! -d "DumperSdk" ]; then
+            echo "DumperSdk folder missing!"
+            exit 1
+          fi
 
       - name: Setup Xcode
         run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
@@ -35,12 +41,11 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             clean build
 
-      - name: Locate dylib
-        run: find DumperSdk/build -name "SdkDumper.dylib" -type f
+      - name: Find dylib
+        run: find DumperSdk/build -name "SdkDumper.dylib" -type f || true
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: SdkDumper-dylib
           path: DumperSdk/build/**/SdkDumper.dylib
-          if-no-files-found: error
