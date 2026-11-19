@@ -51,91 +51,16 @@ public:
     }
 
     uintptr_t GetGUObjectArrayPtr() const override
-    {
-       
-        const mach_header *hdr = GetExecutableInfo().header;
+{
+    uintptr_t base = (uintptr_t)_dyld_get_image_vmaddr_slide(0);
+    return base + 0x109ABC718;
+}
 
-        const char *bytes = AY_OBFUSCATE("\x80\xB9\x00\x00\x00\x00\x00\x00\x00\x91\x00\x00\x40\xF9\x00\x03\x80\x52");
-        const char *mask = AY_OBFUSCATE("xx???????x??xx?xxx");
-        const int step = 2;
-
-        uintptr_t insn_address = KittyScanner::findBytesFirst(hdr, AY_OBFUSCATE("__TEXT"), bytes, mask);
-        if (insn_address == 0)
-            return 0;
-
-        insn_address += step;
-
-        int64 adrp_pc_rel = 0;
-        int32 add_imm12 = 0;
-
-        const int page_size = 4096;
-        const uintptr_t page_off = (insn_address & ~(page_size - 1));
-
-        uint32 adrp_insn = vm_rpm_ptr<uint32>((void *)(insn_address));
-        uint32 add_insn = vm_rpm_ptr<uint32>((void *)(insn_address + 4));
-        if (adrp_insn == 0 || add_insn == 0)
-            return 0;
-
-        if (!KittyArm64::decode_adr_imm(adrp_insn, &adrp_pc_rel) || adrp_pc_rel == 0)
-            return 0;
-
-        add_imm12 = KittyArm64::decode_addsub_imm(add_insn);
-        if (add_imm12 == 0)
-            return 0;
-
-        return (page_off + adrp_pc_rel + add_imm12);
-          
-    }
-
-    uintptr_t GetNamesPtr() const override
-    {
-        const mach_header *hdr = GetExecutableInfo().header;
-
-        const char *bytes = AY_OBFUSCATE("\xE0\x00\x00\x91\x00\x09\x00\x94\x00\x00\x02");
-        const char *mask = AY_OBFUSCATE("x?xx?xxx??x");
-        const int step = 8;
-
-        uintptr_t insn_address = KittyScanner::findBytesFirst(hdr, AY_OBFUSCATE("__TEXT"), bytes, mask);
-        if (insn_address == 0)
-            return 0;
-            
-        insn_address += step;
-
-        int64 adrp_pc_rel = 0;
-        int32 add_imm12 = 0;
-
-        const int page_size = 4096;
-        const uintptr_t page_off = (insn_address & ~(page_size - 1));
-
-        uint32 adrp_insn = vm_rpm_ptr<uint32>((void *)(insn_address));
-        uint32 add_insn = vm_rpm_ptr<uint32>((void *)(insn_address + 4));
-        if (adrp_insn == 0 || add_insn == 0)
-            return 0;
-
-        if (!KittyArm64::decode_adr_imm(adrp_insn, &adrp_pc_rel) || adrp_pc_rel == 0)
-            return 0;
-
-        add_imm12 = KittyArm64::decode_addsub_imm(add_insn);
-        if (add_imm12 == 0)
-            return 0;
-
-        // getting randomized GNames ptr
-        uintptr_t param_1 = (page_off + adrp_pc_rel + add_imm12);
-
-        int64 var_2;
-        int64 var_5[16];
-
-        var_2 = (vm_rpm_ptr<int32>((void *)(param_1)) - 100) / 3u;
-        var_5[(uint32)(var_2 - 1)] = vm_rpm_ptr<int64>((void *)(param_1 + 8));
-
-        while (var_2 - 2 >= 0)
-        {
-            var_5[(uint32)(var_2 - 2)] = vm_rpm_ptr<int64>((void *)(var_5[var_2 - 1]));
-            --var_2;
-        }
-
-        return vm_rpm_ptr<uintptr_t>((void *)(var_5[0]));
-    }
+uintptr_t GetNamesPtr() const override
+{
+    uintptr_t base = (uintptr_t)_dyld_get_image_vmaddr_slide(0);
+    return base + 0x104734D98;
+}
     
     
     uintptr_t GetGworld() const override
