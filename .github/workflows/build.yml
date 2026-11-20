@@ -1,4 +1,4 @@
-name: Build SdkDumper dylib
+name: Build SdkDumper (deb + dylib)
 
 on:
   workflow_dispatch:
@@ -10,28 +10,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Xcode
+      - name: Install Theos
         run: |
-          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer || \
-          sudo xcode-select -s /Applications/Xcode_16.4.app/Contents/Developer || true
-          xcodebuild -version
+          bash -c "$(curl -fsSL https://raw.githubusercontent.com/theos/theos/master/bin/install-theos)"
+          echo "THEOS=$HOME/theos" >> $GITHUB_ENV
+          echo "$HOME/theos/bin" >> $GITHUB_PATH
 
       - name: Build
-        working-directory: DumperSdk
+        working-directory: Theos-SdkDumper
         run: |
-          xcodebuild \
-            -project SdkDumper.xcodeproj \
-            -target SdkDumper \
-            -configuration Release \
-            -sdk iphoneos \
-            -arch arm64 \
-            CODE_SIGNING_ALLOWED=NO \
-            ALWAYS_SEARCH_USER_PATHS=NO \
-            clean build
+          make clean || true
+          make package
+
+      - name: Upload .deb
+        uses: actions/upload-artifact@v4
+        with:
+          name: SdkDumper-deb
+          path: Theos-SdkDumper/**/*.deb
 
       - name: Upload dylib
         uses: actions/upload-artifact@v4
         with:
           name: SdkDumper-dylib
-          path: DumperSdk/build/**/SdkDumper.dylib
-          if-no-files-found: error
+          path: Theos-SdkDumper/.theos/obj/arm64/*.dylib
