@@ -116,7 +116,7 @@ NSString *cheatbotStyle() {
 
 -(void)load1
 {
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         [self sucsses];
     });
 }
@@ -125,12 +125,29 @@ NSString *cheatbotStyle() {
 
 -(void)sucsses
 {
-    // Full login + server bypass
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        NSLog(@"======= I'm Loaded ========");
-        pthread_t pthread;
-        pthread_create(&pthread, nullptr, botxd, nullptr);
+    // Manual Dump Button
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Dumper"
+                                                                       message:@"In-game jaane ke baad dump start karo"
+                                                                preferredStyle:UIAlertControllerStyleAlert];
+
+        UIAlertAction *startDump = [UIAlertAction actionWithTitle:@"Start Dump"
+                                                             style:UIAlertActionStyleDefault
+                                                           handler:^(UIAlertAction * _Nonnull action) {
+            // Start dump thread
+            pthread_t pthread;
+            pthread_create(&pthread, nullptr, botxd, nullptr);
+        }];
+
+        UIAlertAction *cancel = [UIAlertAction actionWithTitle:@"Cancel"
+                                                          style:UIAlertActionStyleCancel
+                                                        handler:nil];
+
+        [alert addAction:startDump];
+        [alert addAction:cancel];
+
+        UIViewController *root = [UIApplication sharedApplication].keyWindow.rootViewController;
+        [root presentViewController:alert animated:YES completion:nil];
     });
 }
 
