@@ -1,85 +1,86 @@
-THEOS_DEVICE_IP ?= 127.0.0.1
-THEOS_DEVICE_PORT ?= 2222
+DEBUG = 0
+FINALPACKAGE = 1
 
-TARGET := iphone:clang:16.5:12.0
+TARGET = iphone:clang:latest:14.0
+ARCHS = arm64
 
 include $(THEOS)/makefiles/common.mk
 
-TWEAK_NAME = AutoDumperSdk
+TWEAK_NAME = SdkDumper
 
-# ── Source files ──────────────────────────────────────────────────────────────
-AutoDumperSdk_FILES = \
-    src/Tweak.mm \
-    src/AlertUtils.mm \
-    src/DumpTransfer.mm \
-    src/DumpTransferUI.mm \
-    src/RSA.m \
-    src/CheatBotuuid.m \
-    src/Core/Dumper.cpp \
-    src/Core/wrappers.cpp \
-    src/Core/memory.cpp \
-    includes/KittyMemory/KittyMemory.cpp \
-    includes/KittyMemory/KittyScanner.cpp \
-    includes/KittyMemory/KittyArm64.cpp \
-    includes/KittyMemory/KittyUtils.cpp \
-    includes/KittyMemory/MemoryBackup.cpp \
-    includes/KittyMemory/MemoryPatch.cpp \
-    includes/KittyMemory/writeData.cpp \
-    includes/GCDAsyncSocket/GCDAsyncSocket.m \
-    includes/GCDAsyncSocket/GCDAsyncUdpSocket.m \
-    includes/SCLAlertView/SCLAlertView.m \
-    includes/SCLAlertView/SCLAlertViewResponder.m \
-    includes/SCLAlertView/SCLAlertViewStyleKit.m \
-    includes/SCLAlertView/SCLButton.m \
-    includes/SCLAlertView/SCLSwitchView.m \
-    includes/SCLAlertView/SCLTextView.m \
-    includes/SCLAlertView/SCLTimerDisplay.m \
-    includes/SCLAlertView/UIImage+ImageEffects.m \
-    includes/SSZipArchive/SSZipArchive.m
+SdkDumper_FILES = src/Tweak.mm \
+                  src/AlertUtils.mm \
+                  src/DumpTransfer.mm \
+                  src/DumpTransferUI.mm \
+                  src/CheatBotuuid.m \
+                  src/RSA.m \
+                  src/Core/Dumper.cpp \
+                  src/Core/memory.cpp \
+                  src/Core/wrappers.cpp \
+                  includes/KittyMemory/KittyMemory.cpp \
+                  includes/KittyMemory/KittyScanner.cpp \
+                  includes/KittyMemory/KittyUtils.cpp \
+                  includes/KittyMemory/MemoryBackup.cpp \
+                  includes/KittyMemory/MemoryPatch.cpp \
+                  includes/KittyMemory/writeData.cpp \
+                  includes/KittyMemory/KittyArm64.cpp \
+                  includes/SCLAlertView/SCLAlertView.m \
+                  includes/SCLAlertView/SCLButton.m \
+                  includes/SCLAlertView/SCLTextView.m \
+                  includes/SCLAlertView/SCLSwitchView.m \
+                  includes/SCLAlertView/SCLTimerDisplay.m \
+                  includes/SCLAlertView/SCLAlertViewStyleKit.m \
+                  includes/SCLAlertView/SCLAlertViewResponder.m \
+                  includes/SCLAlertView/UIImage+ImageEffects.m \
+                  includes/SSZipArchive/SSZipArchive.m \
+                  includes/SSZipArchive/minizip/mz_compat.c \
+                  includes/SSZipArchive/minizip/mz_crypt.c \
+                  includes/SSZipArchive/minizip/mz_crypt_apple.c \
+                  includes/SSZipArchive/minizip/mz_os.c \
+                  includes/SSZipArchive/minizip/mz_os_posix.c \
+                  includes/SSZipArchive/minizip/mz_strm.c \
+                  includes/SSZipArchive/minizip/mz_strm_buf.c \
+                  includes/SSZipArchive/minizip/mz_strm_mem.c \
+                  includes/SSZipArchive/minizip/mz_strm_os_posix.c \
+                  includes/SSZipArchive/minizip/mz_strm_pkcrypt.c \
+                  includes/SSZipArchive/minizip/mz_strm_split.c \
+                  includes/SSZipArchive/minizip/mz_strm_wzaes.c \
+                  includes/SSZipArchive/minizip/mz_strm_zlib.c \
+                  includes/SSZipArchive/minizip/mz_zip.c \
+                  includes/SSZipArchive/minizip/mz_zip_rw.c \
+                  includes/GCDAsyncSocket/GCDAsyncSocket.m \
+                  includes/GCDAsyncSocket/GCDAsyncUdpSocket.m
 
-# ── Compiler flags ────────────────────────────────────────────────────────────
-AutoDumperSdk_CFLAGS = \
-    -fobjc-arc \
-    -I$(THEOS_PROJECT_DIR)/src \
-    -I$(THEOS_PROJECT_DIR)/includes \
-    -I$(THEOS_PROJECT_DIR)/includes/KittyMemory \
-    -I$(THEOS_PROJECT_DIR)/includes/GCDAsyncSocket \
-    -I$(THEOS_PROJECT_DIR)/includes/SCLAlertView \
-    -I$(THEOS_PROJECT_DIR)/includes/SSZipArchive \
-    -I$(THEOS_PROJECT_DIR)/includes/fmt \
-    -I$(THEOS_PROJECT_DIR)/includes/nlohmann \
-    -DTHEOS_BUILD
+SdkDumper_CFLAGS = -fobjc-arc -w -Wno-error \
+                   -DHAVE_WZAES \
+                   -DHAVE_COMMONCRYPTO \
+                   -DFMT_HEADER_ONLY \
+                   -Iincludes \
+                   -Isrc \
+                   -Isrc/Core \
+                   -Iincludes/KittyMemory \
+                   -Iincludes/SCLAlertView \
+                   -Iincludes/SSZipArchive \
+                   -Iincludes/SSZipArchive/minizip \
+                   -Iincludes/GCDAsyncSocket \
+                   -Iincludes/fmt \
+                   -Iincludes/nlohmann \
+                   -Iincludes/hash
 
-AutoDumperSdk_CCFLAGS = \
-    -std=c++17 \
-    -fobjc-arc \
-    -I$(THEOS_PROJECT_DIR)/src \
-    -I$(THEOS_PROJECT_DIR)/includes \
-    -I$(THEOS_PROJECT_DIR)/includes/KittyMemory \
-    -I$(THEOS_PROJECT_DIR)/includes/fmt \
-    -I$(THEOS_PROJECT_DIR)/includes/nlohmann \
-    -DTHEOS_BUILD
+SdkDumper_CCFLAGS = -std=c++17 -w -Wno-error \
+                    -DHAVE_WZAES \
+                    -DHAVE_COMMONCRYPTO \
+                    -DFMT_HEADER_ONLY \
+                    -Iincludes \
+                    -Isrc \
+                    -Isrc/Core \
+                    -Iincludes/KittyMemory \
+                    -Iincludes/fmt \
+                    -Iincludes/nlohmann
 
-# ── Frameworks & libs ─────────────────────────────────────────────────────────
-AutoDumperSdk_FRAMEWORKS = \
-    UIKit \
-    Foundation \
-    Security \
-    CommonCrypto \
-    CFNetwork \
-    SystemConfiguration \
-    CoreGraphics \
-    QuartzCore
-
-AutoDumperSdk_LIBRARIES = z
-
-# ── Filter — inject into PUBGM only ──────────────────────────────────────────
-AutoDumperSdk_FILTER_BUNDLES = \
-    com.tencent.ig \
-    com.rekoo.pubgm \
-    com.pubg.imobile \
-    com.pubg.krmobile \
-    com.vng.pubgmobile \
-    vn.vng.pubgmobile
+SdkDumper_FRAMEWORKS = UIKit Foundation Security
+SdkDumper_LIBRARIES =
+SdkDumper_LDFLAGS = -lz -lc++
+SdkDumper_STRIP = 0
 
 include $(THEOS_MAKE_PATH)/tweak.mk
