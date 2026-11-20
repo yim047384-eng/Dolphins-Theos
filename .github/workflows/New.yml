@@ -18,10 +18,10 @@ jobs:
       - name: Unzip Source
         run: |
           echo "Unzipping..."
-          unzip -q AutoDumperSdk.zip -d .
+          unzip -q xdop.zip -d .
           echo "Removing unnecessary files..."
           rm -rf __MACOSX
-          rm AutoDumperSdk.zip
+          rm xdop.zip
           
       - name: Commit and Push Extracted Files
         run: |
