@@ -3,10 +3,7 @@ ARCHS = arm64
 
 include $(THEOS)/makefiles/common.mk
 
-# For .deb (jailbreak)
 TWEAK_NAME = SdkDumper
-
-# For .dylib (non-jailbreak)
 LIBRARY_NAME = SdkDumperLib
 
 COMMON_FILES = src/Tweak.mm \
@@ -37,10 +34,23 @@ COMMON_FILES = src/Tweak.mm \
 SdkDumper_FILES = $(COMMON_FILES)
 SdkDumperLib_FILES = $(COMMON_FILES)
 
-COMMON_FLAGS = -fobjc-arc -Wno-deprecated-declarations \
-               -Iincludes -Isrc -Isrc/Core \
-               -Iincludes/KittyMemory -Iincludes/SCLAlertView \
-               -Iincludes/fmt -Iincludes/nlohmann
+COMMON_FLAGS = -fobjc-arc \
+               -Wno-deprecated-declarations \
+               -Wno-error \
+               -Wno-objc-literal-compare \
+               -Wno-format-security \
+               -Wno-unused-function \
+               -Wno-unused-variable \
+               -Iincludes \
+               -Isrc \
+               -Isrc/Core \
+               -Iincludes/KittyMemory \
+               -Iincludes/SCLAlertView \
+               -Iincludes/SSZipArchive \
+               -Iincludes/GCDAsyncSocket \
+               -Iincludes/fmt \
+               -Iincludes/nlohmann \
+               -Iincludes/hash
 
 SdkDumper_CFLAGS = $(COMMON_FLAGS)
 SdkDumper_CCFLAGS = -std=c++17 $(COMMON_FLAGS)
