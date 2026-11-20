@@ -1,9 +1,0 @@
-Package: com.xdopshit.sdklumper
-Name: SdkDumper
-Depends: 
-Version: 1.0.0
-Architecture: iphoneos-arm
-Description: UE4 SDK Dumper by @xdopshit
-Maintainer: @xdopshit
-Author: @xdopshit
-Section: Tweaks
