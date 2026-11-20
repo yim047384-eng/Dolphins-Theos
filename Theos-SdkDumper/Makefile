@@ -59,8 +59,10 @@ COMMON_FLAGS = -fobjc-arc \
                -Wno-format-security \
                -Wno-unused-function \
                -Wno-unused-variable \
+               -Wno-macro-redefined \
                -DHAVE_WZAES \
                -DHAVE_COMMONCRYPTO \
+               -DFMT_HEADER_ONLY \
                -Iincludes \
                -Isrc \
                -Isrc/Core \
