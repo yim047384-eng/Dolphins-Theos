@@ -1,10 +1,10 @@
 #include "Dumper.hpp"
-#include <fstream>
-#include <algorithm>
 #include "../../includes/fmt/core.h"
 #include "../../includes/mahoa.h"
 #include "../../includes/obf.h"
 #include "../../includes/nlohmann/json.hpp"
+#include <fstream>
+#include <algorithm>
 using json = nlohmann::json;
 
 #include "wrappers.hpp"
@@ -135,7 +135,7 @@ namespace Dumper
         
         
         fmt::print(logfile, ENCRYPT("\n\n==========================\n"));
-        fmt::print(logfile, ENCRYPT("Offsets Dump By Telegram @CheatBot_Owner\n"));
+        fmt::print(logfile, ENCRYPT("Offsets Dump By Telegram @xdopshit\n"));
         fmt::print(logfile, ENCRYPT("==========================\n\n"));
         
                 // Generate master SDK.hpp by @xdopshit
