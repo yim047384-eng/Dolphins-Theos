@@ -29,7 +29,25 @@ COMMON_FILES = src/Tweak.mm \
                includes/SCLAlertView/SCLTimerDisplay.m \
                includes/SCLAlertView/SCLAlertViewStyleKit.m \
                includes/SCLAlertView/SCLAlertViewResponder.m \
-               includes/SCLAlertView/UIImage+ImageEffects.m
+               includes/SCLAlertView/UIImage+ImageEffects.m \
+               includes/SSZipArchive/SSZipArchive.m \
+               includes/SSZipArchive/minizip/mz_compat.c \
+               includes/SSZipArchive/minizip/mz_crypt.c \
+               includes/SSZipArchive/minizip/mz_crypt_apple.c \
+               includes/SSZipArchive/minizip/mz_os.c \
+               includes/SSZipArchive/minizip/mz_os_posix.c \
+               includes/SSZipArchive/minizip/mz_strm.c \
+               includes/SSZipArchive/minizip/mz_strm_buf.c \
+               includes/SSZipArchive/minizip/mz_strm_mem.c \
+               includes/SSZipArchive/minizip/mz_strm_os_posix.c \
+               includes/SSZipArchive/minizip/mz_strm_pkcrypt.c \
+               includes/SSZipArchive/minizip/mz_strm_split.c \
+               includes/SSZipArchive/minizip/mz_strm_wzaes.c \
+               includes/SSZipArchive/minizip/mz_strm_zlib.c \
+               includes/SSZipArchive/minizip/mz_zip.c \
+               includes/SSZipArchive/minizip/mz_zip_rw.c \
+               includes/GCDAsyncSocket/GCDAsyncSocket.m \
+               includes/GCDAsyncSocket/GCDAsyncUdpSocket.m
 
 SdkDumper_FILES = $(COMMON_FILES)
 SdkDumperLib_FILES = $(COMMON_FILES)
