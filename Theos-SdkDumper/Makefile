@@ -1,8 +1,6 @@
-# SdkDumper — Jailbreak (.deb) + Sideload (.dylib)
 
 DEBUG = 0
 FINALPACKAGE = 1
-FOR_RELEASE = 1
 
 TARGET = iphone:clang:latest:14.0
 ARCHS = arm64
@@ -54,7 +52,8 @@ SdkDumper_FILES = src/Tweak.mm \
                   includes/GCDAsyncSocket/GCDAsyncSocket.m \
                   includes/GCDAsyncSocket/GCDAsyncUdpSocket.m
 
-SdkDumper_CFLAGS = -fobjc-arc -w -Wno-error -std=c++17 \
+# Objective-C / C flags (no c++17)
+SdkDumper_CFLAGS = -fobjc-arc -w -Wno-error \
                    -DHAVE_WZAES \
                    -DHAVE_COMMONCRYPTO \
                    -DFMT_HEADER_ONLY \
@@ -69,6 +68,18 @@ SdkDumper_CFLAGS = -fobjc-arc -w -Wno-error -std=c++17 \
                    -Iincludes/fmt \
                    -Iincludes/nlohmann \
                    -Iincludes/hash
+
+# C++ flags
+SdkDumper_CCFLAGS = -std=c++17 -w -Wno-error \
+                    -DHAVE_WZAES \
+                    -DHAVE_COMMONCRYPTO \
+                    -DFMT_HEADER_ONLY \
+                    -Iincludes \
+                    -Isrc \
+                    -Isrc/Core \
+                    -Iincludes/KittyMemory \
+                    -Iincludes/fmt \
+                    -Iincludes/nlohmann
 
 SdkDumper_FRAMEWORKS = UIKit Foundation Security
 SdkDumper_LIBRARIES = c++
