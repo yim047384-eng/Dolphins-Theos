@@ -1,6 +1,7 @@
 {
     Filter = {
         Bundles = (
+            "com.pubg.imobile",
             "com.tencent.ig",       // PUBG Mobile Global
             "com.rekoo.pubgm",      // PUBG Mobile TW
             "com.pubg.krmobile",    // PUBG Mobile KR
