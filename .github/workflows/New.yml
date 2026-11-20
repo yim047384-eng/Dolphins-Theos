@@ -18,10 +18,10 @@ jobs:
       - name: Unzip Source
         run: |
           echo "Unzipping..."
-          unzip -q Theos-SdkDumper 2.zip -d .
+          unzip -q Theos-SdkDumper.zip -d .
           echo "Removing unnecessary files..."
           rm -rf __MACOSX
-          rm Theos-SdkDumper 2.zip
+          rm Theos-SdkDumper.zip
           
       - name: Commit and Push Extracted Files
         run: |
