@@ -55,9 +55,7 @@ SdkDumper_CFLAGS = -fobjc-arc -w -Wno-error \
                    -DHAVE_WZAES \
                    -DHAVE_COMMONCRYPTO \
                    -DFMT_HEADER_ONLY \
-                   -Iincludes \
-                   -Isrc \
-                   -Isrc/Core \
+                   -Iincludes -Isrc -Isrc/Core \
                    -Iincludes/KittyMemory \
                    -Iincludes/SCLAlertView \
                    -Iincludes/SSZipArchive \
@@ -71,9 +69,7 @@ SdkDumper_CCFLAGS = -std=c++17 -w -Wno-error \
                     -DHAVE_WZAES \
                     -DHAVE_COMMONCRYPTO \
                     -DFMT_HEADER_ONLY \
-                    -Iincludes \
-                    -Isrc \
-                    -Isrc/Core \
+                    -Iincludes -Isrc -Isrc/Core \
                     -Iincludes/KittyMemory \
                     -Iincludes/fmt \
                     -Iincludes/nlohmann
