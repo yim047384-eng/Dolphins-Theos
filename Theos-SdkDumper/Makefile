@@ -82,7 +82,9 @@ SdkDumper_LDFLAGS = -lc++ -lz
 
 SdkDumperLib_CFLAGS = $(COMMON_FLAGS)
 SdkDumperLib_CCFLAGS = -std=c++17 $(COMMON_FLAGS)
-SdkDumperLib_LDFLAGS = -lc++ -lz -not_for_dyld_shared_cache
+SdkDumperLib_FRAMEWORKS = UIKit Foundation Security
+SdkDumperLib_LDFLAGS = -lc++ -lz
 SdkDumperLib_LIBRARIES =
+
 include $(THEOS_MAKE_PATH)/tweak.mk
 include $(THEOS_MAKE_PATH)/library.mk
