@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Filter</key>
+    <dict>
+        <key>Bundles</key>
+        <array>
+            <string>com.pubg.imobile</string>
+            <string>com.tencent.ig</string>
+            <string>com.pubg.krmobile</string>
+            <string>com.vng.pubgmobile</string>
+            <string>com.rekoo.pubgm</string>
+            <string>com.ea.ios.apexlegendsmobilefps</string>
+            <string>com.bhvr.deadbydaylight</string>
+            <string>com.studiowildcard.wardrumstudios.ark</string>
+            <string>com.farlightgames.farlight84.iosglobal</string>
+            <string>com.lilithgames.xgame.ios.global</string>
+        </array>
+    </dict>
+</dict>
+</plist>
