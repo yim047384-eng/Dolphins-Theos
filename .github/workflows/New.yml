@@ -1,48 +1,32 @@
-name: Build SdkDumper
+name: Unzip to Repo
 
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  build:
-    runs-on: macos-15
-
+  extract:
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: List available Xcode
-        run: ls /Applications | grep Xcode
-
-      - name: Setup Xcode
-        run: |
-          if [ -d "/Applications/Xcode_16.4.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_16.4.app/Contents/Developer
-          elif [ -d "/Applications/Xcode_16.3.app" ]; then
-            sudo xcode-select -s /Applications/Xcode_16.3.app/Contents/Developer
-          elif [ -d "/Applications/Xcode.app" ]; then
-            sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
-          else
-            echo "No suitable Xcode found"
-            ls /Applications
-            exit 1
-          fi
-          xcodebuild -version
-
-      - name: Build
-        working-directory: DumperSdk
-        run: |
-          xcodebuild \
-            -project SdkDumper.xcodeproj \
-            -target SdkDumper \
-            -configuration Release \
-            -sdk iphoneos \
-            -arch arm64 \
-            CODE_SIGNING_ALLOWED=NO \
-            ALWAYS_SEARCH_USER_PATHS=NO \
-            clean build
-
-      - name: Upload dylib
-        uses: actions/upload-artifact@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
         with:
-          name: SdkDumper-dylib
-          path: DumperSdk/build/**/SdkDumper.dylib
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Unzip Source
+        run: |
+          echo "Unzipping..."
+          unzip -q Theos-SdkDumper.zip -d .
+          echo "Removing unnecessary files..."
+          rm -rf __MACOSX
+          rm Theos-SdkDumper.zip
+          
+      - name: Commit and Push Extracted Files
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Extracted source files from zip and cleaned up"
+          git push
