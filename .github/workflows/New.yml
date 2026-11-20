@@ -15,7 +15,6 @@ jobs:
 
       - name: Setup Xcode
         run: |
-          # Try common paths
           if [ -d "/Applications/Xcode_16.4.app" ]; then
             sudo xcode-select -s /Applications/Xcode_16.4.app/Contents/Developer
           elif [ -d "/Applications/Xcode_16.3.app" ]; then
@@ -23,24 +22,24 @@ jobs:
           elif [ -d "/Applications/Xcode.app" ]; then
             sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
           else
-            echo "No Xcode found"
+            echo "No suitable Xcode found"
             ls /Applications
             exit 1
           fi
           xcodebuild -version
 
-     - name: Build
-  working-directory: DumperSdk
-  run: |
-    xcodebuild \
-      -project SdkDumper.xcodeproj \
-      -target SdkDumper \
-      -configuration Release \
-      -sdk iphoneos \
-      -arch arm64 \
-      CODE_SIGNING_ALLOWED=NO \
-      ALWAYS_SEARCH_USER_PATHS=NO \
-      clean build
+      - name: Build
+        working-directory: DumperSdk
+        run: |
+          xcodebuild \
+            -project SdkDumper.xcodeproj \
+            -target SdkDumper \
+            -configuration Release \
+            -sdk iphoneos \
+            -arch arm64 \
+            CODE_SIGNING_ALLOWED=NO \
+            ALWAYS_SEARCH_USER_PATHS=NO \
+            clean build
 
       - name: Upload dylib
         uses: actions/upload-artifact@v4
