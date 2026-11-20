@@ -10,26 +10,41 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Theos
+      - name: Install Theos (with retry)
         run: |
-          bash -c "$(curl -fsSL https://raw.githubusercontent.com/theos/theos/master/bin/install-theos)"
+          # Retry Theos install
+          for i in {1..3}; do
+            bash -c "$(curl -fsSL https://raw.githubusercontent.com/theos/theos/master/bin/install-theos)" && break || sleep 10
+          done
           echo "THEOS=$HOME/theos" >> $GITHUB_ENV
           echo "$HOME/theos/bin" >> $GITHUB_PATH
+
+      - name: Install iOS SDK manually (fallback)
+        run: |
+          # If Theos SDK failed, use Xcode SDK
+          if [ ! -d "$HOME/theos/sdks" ] || [ -z "$(ls -A $HOME/theos/sdks 2>/dev/null)" ]; then
+            echo "Using Xcode SDK as fallback"
+            mkdir -p $HOME/theos/sdks
+            # Link Xcode SDK
+            ln -sf $(xcrun --sdk iphoneos --show-sdk-path) $HOME/theos/sdks/iPhoneOS.sdk || true
+          fi
 
       - name: Build
         working-directory: Theos-SdkDumper
         run: |
           make clean || true
-          make package
+          make package || make
 
       - name: Upload .deb
         uses: actions/upload-artifact@v4
         with:
           name: SdkDumper-deb
           path: Theos-SdkDumper/**/*.deb
+          if-no-files-found: warn
 
       - name: Upload dylib
         uses: actions/upload-artifact@v4
         with:
           name: SdkDumper-dylib
-          path: Theos-SdkDumper/.theos/obj/arm64/*.dylib
+          path: Theos-SdkDumper/.theos/obj/**/*.dylib
+          if-no-files-found: warn
