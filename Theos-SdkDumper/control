@@ -1,10 +1,9 @@
-Package: com.xdopshit.sdklumper
-Name: SdkDumper
-Depends: mobilesubstrate
+Package: com.cheatbot.autodumpersdk
+Name: AutoDumperSdk
 Version: 1.0.0
-Architecture: iphoneos-arm
-Description: UE4 / BGMI SDK Dumper by @xdopshit
-Maintainer: @xdopshit
-Author: @xdopshit
+Architecture: iphoneos-arm64
+Description: UE4 SDK Dumper — PUBGM/BGMI — No Login, Manual Dump Button
+Maintainer: CheatBot_Owner
+Author: CheatBot_Owner
 Section: Tweaks
-Dev: @xdopshit
+Depends: mobilesubstrate | substitute | libhooker
