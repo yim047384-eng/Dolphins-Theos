@@ -1,50 +1,37 @@
-name: Build Dolphins Dylib
+name: Build SdkDumper dylib
 
 on:
-  push:
-    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: macos-15
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-        with:
-          submodules: true
+      - uses: actions/checkout@v4
 
-      - name: Setup Theos manually
+      - name: Setup Xcode
         run: |
-          # Clone Theos with submodules
-          git clone --recursive https://github.com/theos/theos.git $HOME/theos
-          
-          # Download the iOS SDKs
-          curl -L https://github.com/theos/sdks/archive/master.zip -o /tmp/sdks.zip
-          unzip -q /tmp/sdks.zip -d /tmp
-          
-          # Move the SDKs into the Theos directory
-          mkdir -p $HOME/theos/sdks
-          mv /tmp/sdks-master/*.sdk $HOME/theos/sdks/
-          
-          # Export THEOS so your Makefile can see it
-          echo "THEOS=$HOME/theos" >> $GITHUB_ENV
+          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer || \
+          sudo xcode-select -s /Applications/Xcode_16.4.app/Contents/Developer || true
+          xcodebuild -version
 
-      - name: Debug THEOS path
+      - name: Build
+        working-directory: DumperSdk
         run: |
-          echo "THEOS = $THEOS"
-          ls -la "$THEOS/makefiles/common.mk" || echo "COMMON.MK MISSING"
-          ls -la "$THEOS/makefiles/library.mk" || echo "LIBRARY.MK MISSING"
-
-      - name: Build dylib
-        run: |
-          make clean || echo "clean skipped"
-          make
+          xcodebuild \
+            -project SdkDumper.xcodeproj \
+            -target SdkDumper \
+            -configuration Release \
+            -sdk iphoneos \
+            -arch arm64 \
+            CODE_SIGNING_ALLOWED=NO \
+            ALWAYS_SEARCH_USER_PATHS=NO \
+            clean build
 
       - name: Upload dylib
         uses: actions/upload-artifact@v4
         with:
-          name: Dolphins-dylib
-          path: .theos/obj/arm64/Dolphins.dylib
-          if-no-files-found: warn
+          name: SdkDumper-dylib
+          path: DumperSdk/build/**/SdkDumper.dylib
+          if-no-files-found: error
