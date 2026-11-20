@@ -59,12 +59,15 @@ COMMON_FLAGS = -fobjc-arc \
                -Wno-format-security \
                -Wno-unused-function \
                -Wno-unused-variable \
+               -DHAVE_WZAES \
+               -DHAVE_COMMONCRYPTO \
                -Iincludes \
                -Isrc \
                -Isrc/Core \
                -Iincludes/KittyMemory \
                -Iincludes/SCLAlertView \
                -Iincludes/SSZipArchive \
+               -Iincludes/SSZipArchive/minizip \
                -Iincludes/GCDAsyncSocket \
                -Iincludes/fmt \
                -Iincludes/nlohmann \
@@ -73,10 +76,12 @@ COMMON_FLAGS = -fobjc-arc \
 SdkDumper_CFLAGS = $(COMMON_FLAGS)
 SdkDumper_CCFLAGS = -std=c++17 $(COMMON_FLAGS)
 SdkDumper_FRAMEWORKS = UIKit Foundation Security
+SdkDumper_LDFLAGS = -lc++ -lz
 
 SdkDumperLib_CFLAGS = $(COMMON_FLAGS)
 SdkDumperLib_CCFLAGS = -std=c++17 $(COMMON_FLAGS)
 SdkDumperLib_FRAMEWORKS = UIKit Foundation Security
+SdkDumperLib_LDFLAGS = -lc++ -lz
 
 include $(THEOS_MAKE_PATH)/tweak.mk
 include $(THEOS_MAKE_PATH)/library.mk
