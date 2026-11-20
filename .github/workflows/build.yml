@@ -1,61 +1,49 @@
-name: Build AutoDumperSdk
+name: Build SdkDumper
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: macos-15
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install Theos
         run: |
-          bash -c "$(curl -fsSL https://raw.githubusercontent.com/theos/theos/master/bin/install-theos)"
-        env:
-          THEOS: ${{ github.workspace }}/theos
+          git clone --recursive https://github.com/theos/theos.git $HOME/theos
+          echo "THEOS=$HOME/theos" >> $GITHUB_ENV
+          echo "$HOME/theos/bin" >> $GITHUB_PATH
 
-      - name: Set THEOS env
-        run: echo "THEOS=${{ github.workspace }}/theos" >> $GITHUB_ENV
+      - name: Setup SDK
+        run: |
+          mkdir -p $HOME/theos/sdks
+          SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
+          ln -sf "$SDK_PATH" $HOME/theos/sdks/iPhoneOS.sdk
 
       - name: Install ldid
-        run: brew install ldid || true
-
-      - name: Build .deb package
         run: |
-          make package FINALPACKAGE=1 THEOS=${{ github.workspace }}/theos
-        env:
-          THEOS: ${{ github.workspace }}/theos
-          THEOS_MAKE_PATH: ${{ github.workspace }}/theos/makefiles
+          brew install ldid || true
+          if ! command -v ldid &> /dev/null; then
+            curl -L https://github.com/ProcursusTeam/ldid/releases/download/v2.1.5-procursus7/ldid_macosx_arm64 -o /usr/local/bin/ldid
+            chmod +x /usr/local/bin/ldid
+          fi
 
-      - name: Extract .dylib from .deb
+      - name: Build
+        working-directory: Theos-SdkDumper
         run: |
-          DEB=$(find packages -name "*.deb" | head -1)
-          echo "Found deb: $DEB"
-          mkdir -p deb_extract
-          dpkg-deb -x "$DEB" deb_extract
-          find deb_extract -name "*.dylib" | head -5
-          mkdir -p dylib_out
-          find deb_extract -name "*.dylib" -exec cp {} dylib_out/ \;
+          make clean || true
+          make package
 
-      - name: Upload .deb artifact
+      - name: Upload dylib
         uses: actions/upload-artifact@v4
         with:
-          name: AutoDumperSdk-deb
-          path: packages/*.deb
-          if-no-files-found: warn
-          retention-days: 14
+          name: SdkDumper-dylib
+          path: Theos-SdkDumper/.theos/obj/SdkDumper.dylib
 
-      - name: Upload .dylib artifact
+      - name: Upload deb
         uses: actions/upload-artifact@v4
         with:
-          name: AutoDumperSdk-dylib
-          path: dylib_out/*.dylib
-          if-no-files-found: warn
-          retention-days: 14
+          name: SdkDumper-deb
+          path: Theos-SdkDumper/**/*.deb
