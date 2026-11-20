@@ -115,87 +115,37 @@ NSString *cheatbotStyle() {
 
 -(void)load1
 {
-  
-
-
-dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-    [self login];
-  
-  
-
-});
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [self sucsses];
+    });
 }
-
-
 
 -(void)sucsses
 {
- 
-    
-    NSUserDefaults *check;
-        check = [NSUserDefaults standardUserDefaults];
-        NSString *loggedin = [check stringForKey:NSSENCRYPT("loggedin")];
-        NSString *key = [check stringForKey:NSSENCRYPT("key")];
-    NSString *uuid = [KeychainUtility getPersistentUUID];
-        NSString *cheatbotstp = NSSENCRYPT("FREE");
-    NSString *token = [check stringForKey:NSSENCRYPT("myenc")];
-    NSError *errorAgentData;
-    key=[NSString stringWithFormat:@"%@",key];
-        char* keylogin = (char*) [key cStringUsingEncoding:NSUTF8StringEncoding];
-    
-    
-    NSString *urlString = NSSENCRYPT("https://botxd.online/connect");
-    
-    NSString *bodyString = [NSString stringWithFormat:@"game=%@&udid=%@&key=%@&myenc=%@",cheatbotstp, uuid, key, token];
-    NSData *bodyData = [bodyString dataUsingEncoding:NSUTF8StringEncoding];
-
-    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:urlString]];
-    [request setHTTPMethod:NSSENCRYPT("POST")];
-    [request setValue:@"application/x-www-form-urlencoded" forHTTPHeaderField:@"Content-Type"];
-    [request setHTTPBody:bodyData];
-
-    NSError *error = nil;
-    NSData *responseData = [NSURLConnection sendSynchronousRequest:request returningResponse:nil error:&error];
-
-    if (error) {
-       showError(NSSENCRYPT("There is an issue\nError Code : -657\nContact Admin"));
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            exit(0);
+    // Manual dump button
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Dumper"
+                                                                       message:@"Dump start karne ke liye button dabao"
+                                                                preferredStyle:UIAlertControllerStyleAlert];
+        
+        UIAlertAction *start = [UIAlertAction actionWithTitle:@"Start Dump"
+                                                         style:UIAlertActionStyleDefault
+                                                       handler:^(UIAlertAction *action) {
+            pthread_t pthread;
+            pthread_create(&pthread, nullptr, botxd, nullptr);
+        }];
+        
+        UIAlertAction *cancel = [UIAlertAction actionWithTitle:@"Cancel"
+                                                          style:UIAlertControllerStyleCancel
+                                                        handler:nil];
+        
+        [alert addAction:start];
+        [alert addAction:cancel];
+        
+        [[UIApplication sharedApplication].keyWindow.rootViewController presentViewController:alert animated:YES completion:nil];
     });
-          
-        }
-      else {
-          NSString *encrypted = [[NSString alloc] initWithData:responseData encoding:NSUTF8StringEncoding];
-          NSData *DCxs = [encrypted dataUsingEncoding:NSUTF8StringEncoding];
-          NSDictionary *CHEATBOT = [NSJSONSerialization JSONObjectWithData:DCxs options:kNilOptions error:&error];
-          NSString *CheatBotOP = [CHEATBOT objectForKey:NSSENCRYPT("CheatBot_Owner")];
-          NSString *decrypted = [RSA decryptString:CheatBotOP privateKey:privkey];
-          NSData *DCs = [decrypted dataUsingEncoding:NSUTF8StringEncoding];
-          NSDictionary *JSON = [NSJSONSerialization JSONObjectWithData:DCs options:kNilOptions error:&error];
-          
-        NSString *authStatus = [JSON objectForKey:NSSENCRYPT("status")];
-        NSString *uuidRes = [JSON objectForKey:NSSENCRYPT("uuid")];
-        NSString *uuidResb = [JSON objectForKey:NSSENCRYPT("endtime")];
-        NSString *reason = [JSON objectForKey:NSSENCRYPT("reason")];
-          
-          NSString *tokenres = [JSON objectForKey:NSSENCRYPT("token")];
-          
-        [check setObject:authStatus forKey:NSSENCRYPT("status")];
-        [check setObject:uuidRes forKey:NSSENCRYPT("uuid")];
-        [check setObject:uuidResb forKey:NSSENCRYPT("endtime")];
-        [check setObject:reason forKey:NSSENCRYPT("reason")];
-          [check setObject:tokenres forKey:NSSENCRYPT("phplogo")];
-        [check synchronize];
-    
-    }
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-      NSLog(NSSENCRYPT("======= I'm Loaded ========"));
-      pthread_t pthread;
-      pthread_create(&pthread, nullptr, botxd, nullptr);
-    });
-    [self checkcrack];
 }
+
 
 
 
