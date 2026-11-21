@@ -115,10 +115,15 @@ template <class T> void GetAllActors(std::vector<T *> &Actors) {
 
 void DrawFilledRectangle(UCanvas* Canvas, FVector2D Min, float Width, float Height, FLinearColor Color) {
     for (float i = 0.f; i < Height; i += 1.f) {
-        Canvas->K2_DrawLine(Min + FVector2D(0.f, i), Min + FVector2D(Width, i), 1.f, Color);
+        // Purana: Min + FVector2D(0.f, i)
+        FVector2D StartPos = { Min.X + 0.f, Min.Y + i };
+        
+        // Purana: Min + FVector2D(Width, i)
+        FVector2D EndPos = { Min.X + Width, Min.Y + i };
+        
+        Canvas->K2_DrawLine(StartPos, EndPos, 1.f, Color);
     }
 }
-
 void DrawLine(UCanvas* Canvas, FVector2D from, FVector2D to, float thickness, FLinearColor color) {
     Canvas->K2_DrawLine(from, to, thickness, color);
 }
@@ -133,7 +138,13 @@ bool IsOnScreen(FVector2D pos, float margin = 50.f) {
     return pos.X > -margin && pos.X < g_screenWidth + margin &&
            pos.Y > -margin && pos.Y < g_screenHeight + margin;
 }
-
+void *LoadFont() {
+    while (!Font) {
+        Font = UObject::FindObject<UFont>(std::string("Font RobotoTiny.RobotoTiny"));
+        sleep(1);
+    }
+    return 0;
+}
 // ==========================================
 // ========== ESP RENDER ====================
 // ==========================================
