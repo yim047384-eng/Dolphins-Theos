@@ -31,10 +31,12 @@ jobs:
 
       - name: Download Theos SDKs
         run: |
+          rm -rf "$THEOS/sdks"
           mkdir -p "$THEOS/sdks"
           curl -fsSL https://github.com/theos/sdks/archive/refs/heads/master.zip -o sdks.zip
-          unzip -q sdks.zip
-          find sdks-master -maxdepth 2 -name "*.sdk" -exec cp -R {} "$THEOS/sdks/" \; || true
+          unzip -qo sdks.zip "*/iPhoneOS*.sdk/*" -d sdks_extracted || unzip -qo sdks.zip -d sdks_extracted || true
+          find sdks_extracted -name "*.sdk" -maxdepth 3 -exec cp -R {} "$THEOS/sdks/" \; || true
+          rm -rf sdks.zip sdks_extracted
           ls -la "$THEOS/sdks/"
 
       - name: Build package (ignore warnings)
