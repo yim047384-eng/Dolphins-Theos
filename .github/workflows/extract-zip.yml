@@ -29,10 +29,10 @@ jobs:
           brew install ldid
           echo "THEOS=$THEOS" >> $GITHUB_ENV
 
-        - name: Build Package
-     run: |
-       cd Engine_Cheatbot
-       for sdk in "CheatbotEngine/SDK.hpp" "SDK.hpp"; do
+     - name: Build Package
+       run: |
+        cd Engine_Cheatbot
+        for sdk in "CheatbotEngine/SDK.hpp" "SDK.hpp"; do
          if [ -f "$sdk" ] && ! grep -q "__forceinline" "$sdk"; then
            {
              echo '#ifndef __forceinline'
@@ -41,8 +41,8 @@ jobs:
              cat "$sdk"
            } > "${sdk}.tmp" && mv "${sdk}.tmp" "$sdk"
          fi
-       done
-       make package
+        done
+        make package
 
       - name: Upload Deb (Jailbreak)
         uses: actions/upload-artifact@v4
