@@ -10,9 +10,14 @@
 #include "cpplinq.hpp"
 #include "tinyformat.h"
 
+#include <pthread.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <fstream>
+
 extern IGenerator* generator;
 
-static BOOL manualDumpRequested = NO;
+static volatile bool manualDumpRequested = false;
 
 // ── Dump button ───────────────────────────────────────────────────────────────
 @interface UIButton (SDKDump)
@@ -21,10 +26,49 @@ static BOOL manualDumpRequested = NO;
 
 @implementation UIButton (SDKDump)
 - (void)sdkDumpTapped {
-    manualDumpRequested = YES;
-    dispatch_async(dispatch_get_main_queue(), ^{ self.hidden = YES; });
+    manualDumpRequested = true;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        self.hidden = YES;
+        [self removeFromSuperview];
+    });
 }
 @end
+
+static UIWindow *FindActiveWindow() {
+    UIWindow *targetWindow = nil;
+
+    if (@available(iOS 13.0, *)) {
+        for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
+            if (![scene isKindOfClass:[UIWindowScene class]]) continue;
+            UIWindowScene *windowScene = (UIWindowScene *)scene;
+            if (windowScene.activationState != UISceneActivationStateForegroundActive &&
+                windowScene.activationState != UISceneActivationStateForegroundInactive) {
+                continue;
+            }
+            for (UIWindow *win in windowScene.windows) {
+                if (!win.hidden && win.alpha > 0.01) {
+                    if (win.isKeyWindow) return win;
+                    targetWindow = win;
+                }
+            }
+        }
+    }
+
+    if (!targetWindow) {
+        for (UIWindow *win in [UIApplication sharedApplication].windows) {
+            if (!win.hidden && win.alpha > 0.01) {
+                if (win.isKeyWindow) return win;
+                targetWindow = win;
+            }
+        }
+    }
+
+    if (!targetWindow) {
+        targetWindow = [UIApplication sharedApplication].keyWindow;
+    }
+
+    return targetWindow;
+}
 
 // ── Dump arrays ───────────────────────────────────────────────────────────────
 void Dump(std::string path)
@@ -133,45 +177,7 @@ void *sdk_main_thread(void *)
 {
     sleep(5);
 
-    dispatch_async(dispatch_get_main_queue(), ^{
-        UIWindow *window = nil;
-        for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
-            if (scene.activationState == UISceneActivationStateForegroundActive) {
-                window = ((UIWindowScene *)scene).windows.firstObject;
-                break;
-            }
-        }
-        if (!window) window = [UIApplication sharedApplication].keyWindow;
-        if (!window) return;
-
-        UIButton *btn = [UIButton buttonWithType:UIButtonTypeSystem];
-        btn.frame = CGRectMake(20, 120, 210, 55);
-        btn.backgroundColor = [UIColor colorWithRed:0.08 green:0.55 blue:0.08 alpha:0.92];
-        [btn setTitle:@"▶  Start SDK Dump" forState:UIControlStateNormal];
-        [btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-        btn.titleLabel.font = [UIFont boldSystemFontOfSize:16];
-        btn.layer.cornerRadius = 12;
-        btn.layer.zPosition = 999;
-        btn.tag = 7777;
-        [btn addTarget:btn action:@selector(sdkDumpTapped) forControlEvents:UIControlEventTouchUpInside];
-        [window addSubview:btn];
-        [window bringSubviewToFront:btn];
-    });
-
-    while (!manualDumpRequested) sleep(1);
-
-    // get base
-    UE4 = Tools::GetBaseAddress(lib_name);
-    while (!UE4) { sleep(1); UE4 = Tools::GetBaseAddress(lib_name); }
-
-    uintptr_t GName_Addr   = getTNameArrayAddr();
-    uintptr_t GObject_Addr = getFUObjectArrayAddr();
-
-    if (!ObjectsStore::Initialize(GObject_Addr)) return nullptr;
-    if (!NamesStore::Initialize(GName_Addr))     return nullptr;
-    if (!generator->Initialize(nullptr))          return nullptr;
-
-    // iOS output: Documents/BGMI_SDK/BGMI_v4.6.0/
+    // Create output directory & early log immediately so we know dylib loaded
     NSString *docDir = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES)[0];
     NSString *outFolder = [NSString stringWithFormat:@"%@/%s_SDK", docDir, gameShortName.c_str()];
     mkdir([outFolder UTF8String], 0755);
@@ -182,8 +188,87 @@ void *sdk_main_thread(void *)
 
     std::ofstream log(outputDirectory + "/Generator.log");
     Logger::SetStream(&log);
-    Logger::Log("SDKGenerator iOS Started");
+    Logger::Log("SDKGenerator dylib loaded. Waiting for UI window...");
 
+    // Keep trying until button is attached to an active visible window
+    __block bool buttonAdded = false;
+    while (!buttonAdded && !manualDumpRequested) {
+        dispatch_sync(dispatch_get_main_queue(), ^{
+            UIWindow *window = FindActiveWindow();
+            if (!window) return;
+
+            UIView *existing = [window viewWithTag:7777];
+            if (existing) {
+                [window bringSubviewToFront:existing];
+                buttonAdded = true;
+                return;
+            }
+
+            UIButton *btn = [UIButton buttonWithType:UIButtonTypeCustom];
+            btn.frame = CGRectMake(30, 100, 210, 50);
+            btn.backgroundColor = [UIColor colorWithRed:0.08 green:0.60 blue:0.12 alpha:0.95];
+            [btn setTitle:@"Start SDK Dump" forState:UIControlStateNormal];
+            [btn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+            btn.titleLabel.font = [UIFont boldSystemFontOfSize:16];
+            btn.layer.cornerRadius = 12;
+            btn.layer.borderWidth = 1.5;
+            btn.layer.borderColor = [UIColor whiteColor].CGColor;
+            btn.layer.zPosition = 99999;
+            btn.tag = 7777;
+            [btn addTarget:btn action:@selector(sdkDumpTapped) forControlEvents:UIControlEventTouchUpInside];
+            [window addSubview:btn];
+            [window bringSubviewToFront:btn];
+            buttonAdded = true;
+        });
+
+        if (!buttonAdded) {
+            sleep(1);
+        }
+    }
+
+    Logger::Log("Button attached. Waiting for user tap...");
+
+    while (!manualDumpRequested) {
+        sleep(1);
+    }
+
+    Logger::Log("Dump button tapped! Resolving base address...");
+
+    // Get Mach-O base address (includes 0x100000000 + ASLR slide)
+    uintptr_t baseAddr = Tools::GetBaseAddress(lib_name);
+    while (!baseAddr) {
+        sleep(1);
+        baseAddr = Tools::GetBaseAddress(lib_name);
+    }
+
+    // Prevent double 0x100000000 if Main.h offsets include preferred Mach-O base (0x10...)
+    UE4 = (GNames_Offset >= 0x100000000ULL) ? (baseAddr - 0x100000000ULL) : baseAddr;
+
+    Logger::Log("Image Base: 0x%llX | Effective Slide/Base (UE4): 0x%llX",
+                static_cast<unsigned long long>(baseAddr),
+                static_cast<unsigned long long>(UE4));
+
+    uintptr_t GName_Addr   = getTNameArrayAddr();
+    uintptr_t GObject_Addr = getFUObjectArrayAddr();
+
+    Logger::Log("GName_Addr: 0x%llX | GObject_Addr: 0x%llX",
+                static_cast<unsigned long long>(GName_Addr),
+                static_cast<unsigned long long>(GObject_Addr));
+
+    if (!ObjectsStore::Initialize(GObject_Addr)) {
+        Logger::Log("ERROR: ObjectsStore::Initialize failed!");
+        return nullptr;
+    }
+    if (!NamesStore::Initialize(GName_Addr)) {
+        Logger::Log("ERROR: NamesStore::Initialize failed!");
+        return nullptr;
+    }
+    if (!generator->Initialize(nullptr)) {
+        Logger::Log("ERROR: generator->Initialize failed!");
+        return nullptr;
+    }
+
+    Logger::Log("Stores initialized. Dumping Objects & Names...");
     Dump(outputDirectory);
 
     const auto begin = std::chrono::system_clock::now();
@@ -193,6 +278,11 @@ void *sdk_main_thread(void *)
             std::chrono::system_clock::now() - begin).count());
 
     dispatch_async(dispatch_get_main_queue(), ^{
+        UIWindow *win = FindActiveWindow();
+        UIViewController *vc = win.rootViewController;
+        while (vc.presentedViewController) vc = vc.presentedViewController;
+        if (!vc) return;
+
         NSString *msg = [NSString stringWithFormat:@"SDK Generated!\nPath: %s", outputDirectory.c_str()];
         UIAlertController *alert = [UIAlertController
             alertControllerWithTitle:@"SDKGenerator"
@@ -200,23 +290,19 @@ void *sdk_main_thread(void *)
             preferredStyle:UIAlertControllerStyleAlert];
         [alert addAction:[UIAlertAction actionWithTitle:@"OK"
                           style:UIAlertActionStyleDefault handler:nil]];
-        UIViewController *vc = [UIApplication sharedApplication].keyWindow.rootViewController;
-        while (vc.presentedViewController) vc = vc.presentedViewController;
         [vc presentViewController:alert animated:YES completion:nil];
     });
 
     return nullptr;
 }
 
-// ── Theos entry — no JNI ─────────────────────────────────────────────────────
+// ── Theos entry ───────────────────────────────────────────────────────────────
 __attribute__((constructor))
 static void sdk_init() {
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)),
-                   dispatch_get_main_queue(), ^{
-        static dispatch_once_t once;
-        dispatch_once(&once, ^{
-            pthread_t thread;
-            pthread_create(&thread, nullptr, sdk_main_thread, nullptr);
-        });
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        pthread_t thread;
+        pthread_create(&thread, nullptr, sdk_main_thread, nullptr);
+        pthread_detach(thread);
     });
 }
