@@ -5,7 +5,7 @@
 #include "Includes.h"
 
 static std::string pkgName       = "com.pubg.imobile";
-static std::string gameVersion   = "4.6.0";
+static std::string gameVersion   = "4.7.0";
 static std::string gameShortName = "BGMI";
 static std::string gameFullName  = "Battlegrounds Mobile India";
 static const char* lib_name      = "ShadowTrackerExtra";
