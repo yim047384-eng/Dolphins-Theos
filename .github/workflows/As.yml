@@ -41,7 +41,7 @@ jobs:
 
       - name: Build package (ignore warnings)
         run: |
-          make clean
+          rm -rf .theos obj packages
           make package FINALPACKAGE=1 -w
 
       - name: Extract dylib
