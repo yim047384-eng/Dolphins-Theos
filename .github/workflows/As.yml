@@ -19,6 +19,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Locate project Makefile
+        run: |
+          if [ -f "Makefile" ]; then
+            PROJECT_DIR="."
+          elif [ -f "SDKGenIOS/Makefile" ]; then
+            PROJECT_DIR="SDKGenIOS"
+          else
+            FOUND_MAKEFILE=$(find . -maxdepth 3 -name "Makefile" | head -n 1)
+            if [ -z "$FOUND_MAKEFILE" ]; then
+              echo "Makefile not found!"
+              exit 1
+            fi
+            PROJECT_DIR=$(dirname "$FOUND_MAKEFILE")
+          fi
+          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
+          echo "Using project directory: $PROJECT_DIR"
+          cat "$PROJECT_DIR/Makefile"
+
       - name: Install dependencies (ldid, gnu-tar, dpkg)
         run: |
           brew update || true
@@ -41,26 +59,28 @@ jobs:
 
       - name: Build package (ignore warnings)
         run: |
+          cd "$PROJECT_DIR"
           rm -rf .theos obj packages
           make package FINALPACKAGE=1 -w
 
       - name: Extract dylib
         run: |
-          mkdir -p dylib_out
+          cd "$PROJECT_DIR"
+          mkdir -p "$GITHUB_WORKSPACE/dylib_out"
           DEB=$(find packages -maxdepth 2 -name "*.deb" 2>/dev/null | head -n 1)
           if [ -n "$DEB" ] && command -v dpkg-deb >/dev/null 2>&1; then
             mkdir -p deb_extract
             dpkg-deb -x "$DEB" deb_extract
-            find deb_extract -name "*.dylib" -exec cp {} dylib_out/ \;
+            find deb_extract -name "*.dylib" -exec cp {} "$GITHUB_WORKSPACE/dylib_out/" \;
           fi
-          find .theos/obj -name "*.dylib" -exec cp {} dylib_out/ \; 2>/dev/null || true
-          ls -la dylib_out/ || true
+          find .theos/obj -name "*.dylib" -exec cp {} "$GITHUB_WORKSPACE/dylib_out/" \; 2>/dev/null || true
+          ls -la "$GITHUB_WORKSPACE/dylib_out/" || true
 
       - name: Upload deb
         uses: actions/upload-artifact@v4
         with:
           name: SDKGenerator-deb
-          path: packages/*.deb
+          path: "**/packages/*.deb"
           if-no-files-found: warn
           retention-days: 14
 
