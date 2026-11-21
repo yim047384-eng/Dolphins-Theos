@@ -11,48 +11,48 @@ jobs:
   build:
     runs-on: macos-latest
 
+    env:
+      THEOS: ${{ github.workspace }}/theos
+      THEOS_MAKE_PATH: ${{ github.workspace }}/theos/makefiles
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install ldid & GNU utils
+      - name: Install dependencies (ldid, gnu-tar, dpkg)
         run: |
-          brew install ldid gnu-tar || true
+          brew update || true
+          brew install ldid gnu-tar dpkg || true
 
       - name: Clone Theos
         run: |
-          git clone --recursive https://github.com/theos/theos.git $THEOS
-        env:
-          THEOS: ${{ github.workspace }}/theos
+          rm -rf "$THEOS"
+          git clone --recursive https://github.com/theos/theos.git "$THEOS"
 
-           - name: Download Theos SDKs
+      - name: Download Theos SDKs
         run: |
-          curl -L https://github.com/theos/sdks/archive/refs/heads/master.zip -o sdks.zip
-          unzip -q sdks.zip || true
-          rsync -a sdks-master/ $THEOS/sdks/
-          ls $THEOS/sdks/
-        env:
-          THEOS: ${{ github.workspace }}/theos
+          mkdir -p "$THEOS/sdks"
+          curl -fsSL https://github.com/theos/sdks/archive/refs/heads/master.zip -o sdks.zip
+          unzip -q sdks.zip
+          find sdks-master -maxdepth 2 -name "*.sdk" -exec cp -R {} "$THEOS/sdks/" \; || true
+          ls -la "$THEOS/sdks/"
 
-      - name: Set THEOS env
+      - name: Build package (ignore warnings)
         run: |
-          echo "THEOS=${{ github.workspace }}/theos" >> $GITHUB_ENV
-          echo "THEOS_MAKE_PATH=${{ github.workspace }}/theos/makefiles" >> $GITHUB_ENV
+          make clean
+          make package FINALPACKAGE=1 -w
 
-      - name: Build package
-        run: make package FINALPACKAGE=1
-        env:
-          THEOS: ${{ github.workspace }}/theos
-          THEOS_MAKE_PATH: ${{ github.workspace }}/theos/makefiles
-
-      - name: Extract dylib from deb
+      - name: Extract dylib
         run: |
-          DEB=$(find packages -name "*.deb" | head -1)
-          if [ -n "$DEB" ]; then
-            mkdir -p dylib_out deb_extract
+          mkdir -p dylib_out
+          DEB=$(find packages -maxdepth 2 -name "*.deb" 2>/dev/null | head -n 1)
+          if [ -n "$DEB" ] && command -v dpkg-deb >/dev/null 2>&1; then
+            mkdir -p deb_extract
             dpkg-deb -x "$DEB" deb_extract
             find deb_extract -name "*.dylib" -exec cp {} dylib_out/ \;
           fi
+          find .theos/obj -name "*.dylib" -exec cp {} dylib_out/ \; 2>/dev/null || true
+          ls -la dylib_out/ || true
 
       - name: Upload deb
         uses: actions/upload-artifact@v4
