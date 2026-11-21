@@ -22,17 +22,22 @@ SDKGenerator_FILES = \
 SDKGenerator_CFLAGS = \
     -fobjc-arc \
     -I$(THEOS_PROJECT_DIR)/src \
+    -I$(THEOS_PROJECT_DIR)/src/UE4 \
     -DIOS_BUILD \
     -w \
-    -Wno-error
+    -Wno-error \
+    -Wno-unguarded-availability-new
 
 SDKGenerator_CCFLAGS = \
     -std=c++17 \
     -fobjc-arc \
     -I$(THEOS_PROJECT_DIR)/src \
+    -I$(THEOS_PROJECT_DIR)/src/UE4 \
     -DIOS_BUILD \
     -w \
-    -Wno-error
+    -Wno-error \
+    -Wno-unguarded-availability-new \
+    -Wno-uninitialized
 
 SDKGenerator_FRAMEWORKS = UIKit Foundation
 
