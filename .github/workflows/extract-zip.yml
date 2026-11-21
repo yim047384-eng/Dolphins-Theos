@@ -1,40 +1,59 @@
-name: Extract uploaded ZIP
+name: Universal Build
 
 on:
   push:
-    branches: [main]
-    paths:
-      - 'FUCK IOS DEV.zip'
-      - '.github/workflows/extract-zip.yml'
+    branches: [ main ]
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
-  extract:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: macos-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Extract ZIP on GitHub runner
-        shell: bash
-        run: |
-          set -euo pipefail
-          ZIP_PATH="FUCK IOS DEV.zip"
-          test -f "$ZIP_PATH"
-          mkdir -p "FUCK-IOS-DEV-extracted"
-          unzip -o "$ZIP_PATH" -d "FUCK-IOS-DEV-extracted"
-          echo "Extracted file count:"
-          find "FUCK-IOS-DEV-extracted" -type f | wc -l
+      - name: Cache Theos
+        uses: actions/cache@v3
+        with:
+          path: $HOME/theos
+          key: ${{ runner.os }}-theos-${{ hashFiles('**/Makefile') }}
+          restore-keys: |
+            ${{ runner.os }}-theos-
 
-      - name: Commit extracted files
-        shell: bash
+      - name: Setup Theos and Ldid
         run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "FUCK-IOS-DEV-extracted"
-          git commit -m "Extract FUCK IOS DEV archive" || echo "No extracted changes to commit"
-          git push
+          export THEOS=$HOME/theos
+          if [ ! -d "$THEOS" ]; then
+            git clone --recursive https://github.com/theos/theos.git $THEOS
+          fi
+          brew install ldid
+          echo "THEOS=$THEOS" >> $GITHUB_ENV
+
+        - name: Build Package
+     run: |
+       cd Engine_Cheatbot
+       for sdk in "CheatbotEngine/SDK.hpp" "SDK.hpp"; do
+         if [ -f "$sdk" ] && ! grep -q "__forceinline" "$sdk"; then
+           {
+             echo '#ifndef __forceinline'
+             echo '#define __forceinline __attribute__((always_inline)) inline'
+             echo '#endif'
+             cat "$sdk"
+           } > "${sdk}.tmp" && mv "${sdk}.tmp" "$sdk"
+         fi
+       done
+       make package
+
+      - name: Upload Deb (Jailbreak)
+        uses: actions/upload-artifact@v4
+        with:
+          name: cheatbot-deb-jailbreak
+          path: Engine_Cheatbot/packages/*.deb
+          if-no-files-found: error
+
+      - name: Upload Dylib (Non-Jailbreak)
+        uses: actions/upload-artifact@v4
+        with:
+          name: cheatbot-dylib-sideloadly
+          path: Engine_Cheatbot/.theos/obj/cheatbotowner.dylib
+          if-no-files-found: error
