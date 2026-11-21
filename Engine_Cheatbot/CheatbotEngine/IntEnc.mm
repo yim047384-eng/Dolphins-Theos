@@ -78,11 +78,11 @@ kaddr getRealOffset(kaddr offset) {
 }
 
 long CHEATBOTOWNER() {
-    return getRealOffset(0x109ABC718);
+    return getRealOffset(0x109E108E8);
 }
 
 TNameEntryArray *GetGNames() {
-    return ((TNameEntryArray *(*)()) ((unsigned long)_dyld_get_image_vmaddr_slide(0) + 0x104734D98))();
+    return ((TNameEntryArray *(*)()) ((unsigned long)_dyld_get_image_vmaddr_slide(0) + 0x10491486C))();
 }
 
 UWorld *GetFullWorld() {
