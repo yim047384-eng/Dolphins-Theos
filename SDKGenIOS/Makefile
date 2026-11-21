@@ -1,4 +1,5 @@
-TARGET := iphone:clang:16.5:12.0
+TARGET := iphone:clang:16.5:14.0
+ARCHS = arm64
 
 include $(THEOS)/makefiles/common.mk
 
@@ -21,22 +22,21 @@ SDKGenerator_FILES = \
 SDKGenerator_CFLAGS = \
     -fobjc-arc \
     -I$(THEOS_PROJECT_DIR)/src \
-    -DIOS_BUILD
+    -DIOS_BUILD \
+    -w \
+    -Wno-error
 
 SDKGenerator_CCFLAGS = \
     -std=c++17 \
     -fobjc-arc \
     -I$(THEOS_PROJECT_DIR)/src \
-    -DIOS_BUILD
+    -DIOS_BUILD \
+    -w \
+    -Wno-error
 
 SDKGenerator_FRAMEWORKS = UIKit Foundation
 
 SDKGenerator_FILTER_BUNDLES = \
-    com.pubg.imobile \
-    com.tencent.ig \
-    com.rekoo.pubgm \
-    com.pubg.krmobile \
-    com.vng.pubgmobile \
-    vn.vng.pubgmobile
+    com.pubg.imobile
 
 include $(THEOS_MAKE_PATH)/tweak.mk
