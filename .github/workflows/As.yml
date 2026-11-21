@@ -25,11 +25,11 @@ jobs:
         env:
           THEOS: ${{ github.workspace }}/theos
 
-      - name: Download Theos SDKs
+           - name: Download Theos SDKs
         run: |
           curl -L https://github.com/theos/sdks/archive/refs/heads/master.zip -o sdks.zip
-          unzip -q sdks.zip
-          mv sdks-master/*.sdk $THEOS/sdks/ 2>/dev/null || true
+          unzip -q sdks.zip || true
+          rsync -a sdks-master/ $THEOS/sdks/
           ls $THEOS/sdks/
         env:
           THEOS: ${{ github.workspace }}/theos
