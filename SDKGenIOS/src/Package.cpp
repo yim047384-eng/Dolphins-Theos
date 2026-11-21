@@ -1,6 +1,8 @@
 #include "Package.hpp"
 
+#include <algorithm>
 #include <fstream>
+#include <sstream>
 #include <unordered_set>
 #include "tinyformat.h"
 #include "cpplinq.hpp"
@@ -440,42 +442,56 @@ void Package::GenerateClass(const UEClass& classObj)
 	IGenerator::VirtualFunctionPatterns patterns;
 	if (generator->GetVirtualFunctionPatterns(c.FullName, patterns))
 	{
-        if(libBaseAddr == 0 || libEndAddr == 0){
-            libBaseAddr = Tools::GetBaseAddress("libUE4.so");
-            libEndAddr = Tools::GetEndAddress("libUE4.so");
-        }
-		const auto vtable = *reinterpret_cast<uintptr_t**>(classObj.GetAddress());
-		size_t methodCount = 0;
-		
-        while (true)
+		if (libBaseAddr == 0)
 		{
-            if(!(libBaseAddr < vtable[methodCount] && libEndAddr > vtable[methodCount]))
-			{
-				break;
-			}
-			++methodCount;
+			libBaseAddr = Tools::GetBaseAddress("ShadowTrackerExtra");
 		}
-        
+		if (libEndAddr == 0 && libBaseAddr != 0)
+		{
+			libEndAddr = Tools::GetEndAddress("ShadowTrackerExtra");
+			if (libEndAddr <= libBaseAddr)
+			{
+				libEndAddr = libBaseAddr + 0x10000000;
+			}
+		}
+
+		const auto vtable = classObj.GetAddress() != 0 ? *reinterpret_cast<uintptr_t**>(classObj.GetAddress()) : nullptr;
+		size_t methodCount = 0;
+
+		if (vtable != nullptr && libBaseAddr != 0)
+		{
+			while (methodCount < 512)
+			{
+				const uintptr_t fnPtr = vtable[methodCount];
+				if (fnPtr == 0 || fnPtr < libBaseAddr || fnPtr > libEndAddr)
+				{
+					break;
+				}
+				++methodCount;
+			}
+		}
 
 		for (auto&& pattern : patterns)
 		{
-            Logger::Log("%s MethodCount : %d", c.FullName, methodCount);
-            if (std::get<4>(pattern)){
-                c.PredefinedMethods.push_back(IGenerator::PredefinedMethod::Inline(tfm::format(std::get<3>(pattern), std::get<4>(pattern))));
-            }
-            else {
-			for (auto i = 0u; i < methodCount; ++i)
+			Logger::Log("%s MethodCount : %d", c.FullName, methodCount);
+			if (std::get<4>(pattern))
 			{
-                /* 
-                // TO-DO :
-                if (vtable[i] != 0 && FindPattern(vtable[i], std::get<2>(pattern), reinterpret_cast<const unsigned char*>(std::get<0>(pattern)), std::get<1>(pattern)) != -1)
-				{
-					c.PredefinedMethods.push_back(IGenerator::PredefinedMethod::Inline(tfm::format(std::get<3>(pattern), i)));
-					break;
-				}
-                */
+				c.PredefinedMethods.push_back(IGenerator::PredefinedMethod::Inline(tfm::format(std::get<3>(pattern), std::get<4>(pattern))));
 			}
-            }
+			else
+			{
+				for (auto i = 0u; i < methodCount; ++i)
+				{
+					/*
+					// TO-DO :
+					if (vtable[i] != 0 && FindPattern(vtable[i], std::get<2>(pattern), reinterpret_cast<const unsigned char*>(std::get<0>(pattern)), std::get<1>(pattern)) != -1)
+					{
+						c.PredefinedMethods.push_back(IGenerator::PredefinedMethod::Inline(tfm::format(std::get<3>(pattern), i)));
+						break;
+					}
+					*/
+				}
+			}
 		}
 	}
 
