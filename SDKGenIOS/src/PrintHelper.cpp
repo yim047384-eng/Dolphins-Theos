@@ -1,10 +1,11 @@
 #include "PrintHelper.hpp"
 
+#include <cassert>
+
 #include "tinyformat.h"
 
 #include "IGenerator.hpp"
 #include "Package.hpp"
-
 
 void PrintFileHeader(std::ostream& os, const std::vector<std::string>& includes, bool isHeaderFile)
 {
@@ -77,6 +78,7 @@ std::string GenerateFileName(FileContentType type, const Package& package)
 		break;
 	default:
 		assert(false);
+		return "";
 	}
 
 	return tfm::format(name, generator->GetGameNameShort(), package.GetName());
