@@ -3,7 +3,7 @@
 #define DEG2RAD( x ) ( (float)(x) * (float)(IM_PI / 180.f) )
 #import "SDK.hpp"
 #include <array>
-using namespace CHEATBOT;
+using namespace SDK;
  
 
 
