@@ -20,5 +20,8 @@
 #include <fcntl.h>
 #include <dlfcn.h>
 #include <mach-o/dyld.h>
+
+#ifdef __OBJC__
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
+#endif
