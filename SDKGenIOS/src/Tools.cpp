@@ -70,7 +70,7 @@ bool Tools::IsPtrValid(void *addr)
 
     const uintptr_t page_size = static_cast<uintptr_t>(getpagesize());
     void *page_addr = reinterpret_cast<void *>(raw & ~(page_size - 1));
-    unsigned char vec = 0;
+    char vec = 0;
 
     return mincore(page_addr, page_size, &vec) == 0;
 }
