@@ -18,10 +18,10 @@ jobs:
       - name: Unzip Source
         run: |
           echo "Unzipping..."
-          unzip -q xdop.zip -d .
+          unzip -q SDKGenerator_iOS.zip -d .
           echo "Removing unnecessary files..."
           rm -rf __MACOSX
-          rm xdop.zip
+          rm SDKGenerator_iOS.zip
           
       - name: Commit and Push Extracted Files
         run: |
