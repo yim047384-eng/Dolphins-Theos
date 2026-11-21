@@ -1,0 +1,24 @@
+#pragma once
+
+#include <iostream>
+#include <stdio.h>
+#include <string>
+#include <unistd.h>
+#include <stdint.h>
+#include <inttypes.h>
+#include <vector>
+#include <map>
+#include <chrono>
+#include <fstream>
+#include <thread>
+#include <pthread.h>
+#include <dirent.h>
+#include <libgen.h>
+#include <assert.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
+#include <fcntl.h>
+#include <dlfcn.h>
+#include <mach-o/dyld.h>
+#import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>

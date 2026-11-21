@@ -1,0 +1,9 @@
+Package: com.cheatbot.sdkgenerator
+Name: SDKGenerator
+Version: 1.0.0
+Architecture: iphoneos-arm64
+Description: UE4 SDK Generator — PUBGM/BGMI iOS — Manual Button
+Maintainer: CheatBot_Owner
+Author: CheatBot_Owner
+Section: Tweaks
+Depends: mobilesubstrate | substitute | libhooker
