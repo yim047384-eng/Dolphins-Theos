@@ -200,12 +200,21 @@ void DrawFilledRectangle(UCanvas* Canvas, FVector2D Min, float Width, float Heig
         Canvas->K2_DrawLine(StartPos, EndPos, 1.f, Color);
     }
 }
-static inline void DrawLine(UCanvas* Canvas, FVector2D Start, FVector2D End, float Thickness, FLinearColor Color) {
-    if (!Canvas)
+void DrawText(UCanvas* Canvas, FString Text, FVector2D Pos, FLinearColor Color, FLinearColor OutlineColor, int FontSize, bool isCenter) {
+    if (!Canvas || !Font)
         return;
-    Canvas->K2_DrawLine(Start, End, Thickness, Color);
+    Font->LegacyFontSize = FontSize;
+    Canvas->K2_DrawText(Font, Text, Pos, Color, 1.f, {}, {}, isCenter, false, true, OutlineColor);
+    Font->LegacyFontSize = 13;
 }
 
+void Drawtext(UCanvas* Canvas, FString Text, FVector2D Pos, FLinearColor Color, FLinearColor OutlineColor, int FontSize, bool isCenter) {
+    if (!Canvas || !Font)
+        return;
+    Font->LegacyFontSize = FontSize;
+    Canvas->K2_DrawText(Font, Text, Pos, Color, 1.f, {}, {}, isCenter, false, false, OutlineColor);
+    Font->LegacyFontSize = 14;
+}
 void DrawTextSafe(UCanvas* Canvas, FString Text, FVector2D Pos, FLinearColor Color, int size = 12) {
     if (!Font || !Canvas) return;
     Font->LegacyFontSize = size;
