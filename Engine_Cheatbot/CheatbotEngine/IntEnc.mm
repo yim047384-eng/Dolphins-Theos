@@ -187,7 +187,9 @@ std::vector<AActor *> GetActors()
 }
 
 
-
+void DrawLine(UCanvas* Canvas, FVector2D posFrom, FVector2D posTo, float Thickness, FLinearColor Color) {
+    Canvas->K2_DrawLine({posFrom.X, posFrom.Y}, {posTo.X, posTo.Y}, Thickness, Color);
+}
 
 void DrawFilledRectangle(UCanvas* Canvas, FVector2D Min, float Width, float Height, FLinearColor Color) {
     for (float i = 0.f; i < Height; i += 1.f) {
@@ -285,21 +287,10 @@ void DrawPlayerESP(UCanvas* Canvas)
 
             if (isLineEsp)
             {
-                DrawLine(Canvas, {g_screenWidth / 2.f, 0.f}, {Head2D.X, Head2D.Y}, 1.5f, color);
+             DrawLine(Canvas, {g_screenWidth / 2.f, 0.f}, {Head2D.X, Head2D.Y}, 1.5f, color);
             }
 
-            if (isTextEsp && Font)
-            {
-                std::string Text = Player->bEnsure ? "Bot" : Player->PlayerName.ToString();
-                Font->LegacyFontSize = 10;
-                FLinearColor NameColor = Player->bEnsure ? FLinearColor(0.0f, 0.75f, 1.0f, 1.0f) : FLinearColor(1.0f, 1.0f, 0.0f, 1.0f);
-                Canvas->K2_DrawText(Font, FString(Text), {Root2D.X, Root2D.Y + 12}, NameColor, 1.f, {}, {}, true, true, true, FLinearColor(0, 0, 0, 0));
-
-                Font->LegacyFontSize = 12;
-                std::wstring distX = std::to_wstring((int)Distance) + L"m";
-                FVector2D DistPos = FVector2D(Root2D.X, Root2D.Y + 30.0f);
-                DrawText(Canvas, FString(distX.c_str()), DistPos, FLinearColor(1, 1, 1, 1), FLinearColor(0, 0, 0, 1));
-            }
+    
 
             if (isHpBarEsp)
             {
