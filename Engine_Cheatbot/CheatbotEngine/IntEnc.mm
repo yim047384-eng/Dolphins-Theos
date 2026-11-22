@@ -360,7 +360,7 @@ void DrawPlayerESP(UCanvas* Canvas) {
     int totalBots = 0;
     
     for (auto Player : Actors) {
-        if (!IsValidAddress((uintptr_t)Player) || !Player || !Player->RootComponent) continue;
+        if (!IsValidPtr((uintptr_t)Player) || !Player || !Player->RootComponent) continue;
         if (Player->PlayerKey == localPlayerController->PlayerKey || Player->TeamID == localPlayerController->TeamID || Player->bDead || Player->bHidden) continue;
         
         float Distance = localPlayer->GetDistanceTo(Player) / 100.f;
@@ -406,26 +406,26 @@ void DrawMSG(UCanvas* Canvas) {
 
 void *(*oriCheatbot)(UGameViewportClient* ViewportClient, UCanvas* Canvas);
 void *hookCheatbot(UGameViewportClient* ViewportClient, UCanvas* Canvas) {
-    if (!IsValidAddress(reinterpret_cast<uintptr_t>(Canvas))) return nullptr;
+    if (!IsValidPtr(reinterpret_cast<uintptr_t>(Canvas))) return nullptr;
     g_screenWidth  = Canvas->SizeX;
     g_screenHeight = Canvas->SizeY;
 
     static bool loadFont = false;
     if (!loadFont) { LoadFont(); loadFont = true; }
-    if (!IsValidAddress(reinterpret_cast<uintptr_t>(Font))) return nullptr;
+    if (!IsValidPtr(reinterpret_cast<uintptr_t>(Font))) return nullptr;
 
     auto GWorld = GetFullWorld();
-    if (IsValidAddress(reinterpret_cast<uintptr_t>(GWorld)) &&
-        IsValidAddress(reinterpret_cast<uintptr_t>(GWorld->NetDriver)) &&
-        IsValidAddress(reinterpret_cast<uintptr_t>(GWorld->NetDriver->ServerConnection))) {
+    if (IsValidPtr(reinterpret_cast<uintptr_t>(GWorld)) &&
+        IsValidPtr(reinterpret_cast<uintptr_t>(GWorld->NetDriver)) &&
+        IsValidPtr(reinterpret_cast<uintptr_t>(GWorld->NetDriver->ServerConnection))) {
 
         localPlayerController = (ASTExtraPlayerController*)GWorld->NetDriver->ServerConnection->PlayerController;
-        if (IsValidAddress(reinterpret_cast<uintptr_t>(localPlayerController))) {
+        if (IsValidPtr(reinterpret_cast<uintptr_t>(localPlayerController))) {
             std::vector<ASTExtraPlayerCharacter*> PlayerActors;
             GetAllActors(PlayerActors);
             for (auto P : PlayerActors) {
-                if (!IsValidAddress(reinterpret_cast<uintptr_t>(P))) continue;
-                if (!IsValidAddress(reinterpret_cast<uintptr_t>(P->RootComponent))) continue;
+                if (!IsValidPtr(reinterpret_cast<uintptr_t>(P))) continue;
+                if (!IsValidPtr(reinterpret_cast<uintptr_t>(P->RootComponent))) continue;
                 if (P->PlayerKey == localPlayerController->PlayerKey) {
                     localPlayer = P;
                     break;
