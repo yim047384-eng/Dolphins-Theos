@@ -75,10 +75,7 @@ namespace {
 }
 
     // Function / Code address ke liye (arm64 mein 4-byte aligned)
-    inline bool IsValidCodePtr(uintptr_t addr) {
-        return addr > 0x100000000ULL && addr < 0x2000000000ULL && ((addr & 0x3ULL) == 0);
-    }
-
+    
     // ShadowTrackerExtra ka index aur ASLR slide automatically nikalta hai
     inline uintptr_t GetShadowTrackerSlide() {
         static uintptr_t cachedSlide = 0;
@@ -109,7 +106,7 @@ uintptr_t CHEATBOTOWNER() {
 
 TNameEntryArray *GetGNames() {
     uintptr_t fnAddr = GetShadowTrackerAddr(0x10491486CULL);
-    if (!IsValidCodePtr(fnAddr))
+    if (!IsValidPtr(fnAddr))
         return nullptr;
 
     using FnType = TNameEntryArray *(*)();
