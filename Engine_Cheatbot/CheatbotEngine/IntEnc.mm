@@ -71,8 +71,8 @@ ASTExtraPlayerController *localPlayerController = 0;
 namespace {
     // Data / Object / Array pointers ke liye (8-byte aligned)
     inline bool IsValidPtr(uintptr_t addr) {
-        return addr > 0x100000000ULL && addr < 0x2000000000ULL && ((addr & 0x7ULL) == 0);
-    }
+        return addr > 0x100000000ULL && addr < 0x2000000000ULL;
+}
 
     // Function / Code address ke liye (arm64 mein 4-byte aligned)
     inline bool IsValidCodePtr(uintptr_t addr) {
