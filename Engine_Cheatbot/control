@@ -1,0 +1,9 @@
+Package: com.engine.cheatbot
+Name: CheatbotEngine
+Version: 1.0.0
+Architecture: iphoneos-arm
+Description: Engine Cheatbot
+Maintainer: cheatbot_owner
+Author: cheatbot_owner
+Section: Tweaks
+Depends: mobilesubstrate
