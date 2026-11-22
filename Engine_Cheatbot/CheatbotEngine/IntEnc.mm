@@ -101,11 +101,11 @@ ASTExtraPlayerController *localPlayerController = 0;
 }
 */
 
-bool IsValidPtr(uintptr_t addr) {
+bool IsValidPtr(kaddr addr) {
     return addr > 0x100000000 && addr < 0x2000000000;
 }
 
-kaddr getRealOffset(uintptr_t offset) {
+kaddr getRealOffset(kaddr offset) {
     return (unsigned long)_dyld_get_image_vmaddr_slide(0) + offset;
 }
 
@@ -166,7 +166,7 @@ void DrawLine(UCanvas* Canvas, FVector2D posFrom, FVector2D posTo, float Thickne
     Canvas->K2_DrawLine({posFrom.X, posFrom.Y}, {posTo.X, posTo.Y}, Thickness, Color);
 }
 
-void DrawFilledRectangle(UCanvas* Canvas, FVector2D Min, float Width, float Height, FLinearColor Color) {
+/*void DrawFilledRectangle(UCanvas* Canvas, FVector2D Min, float Width, float Height, FLinearColor Color) {
     for (float i = 0.f; i < Height; i += 1.f) {
         // Purana: Min + FVector2D(0.f, i)
         FVector2D StartPos = { Min.X + 0.f, Min.Y + i };
@@ -176,7 +176,8 @@ void DrawFilledRectangle(UCanvas* Canvas, FVector2D Min, float Width, float Heig
         
         Canvas->K2_DrawLine(StartPos, EndPos, 1.f, Color);
     }
-}
+}*/
+
 void DrawText(UCanvas* Canvas, FString Text, FVector2D Pos, FLinearColor Color, FLinearColor OutlineColor, int FontSize, bool isCenter) {
     if (!Canvas || !Font)
         return;
@@ -374,7 +375,7 @@ void DrawPlayerESP(UCanvas* Canvas) {
     int totalBots = 0;
     
     for (auto Player : Actors) {
-        if (!IsValidPtr((uintptr_t)Player) || !Player || !Player->RootComponent) continue;
+        if (!IsValidPtr((kaddr)Player) || !Player || !Player->RootComponent) continue;
         if (Player->PlayerKey == localPlayerController->PlayerKey || Player->TeamID == localPlayerController->TeamID || Player->bDead || Player->bHidden) continue;
         
         float Distance = localPlayer->GetDistanceTo(Player) / 100.f;
@@ -435,7 +436,7 @@ void *hookCheatbot(UGameViewportClient* ViewportClient, UCanvas* Canvas){
             std::vector<ASTExtraPlayerCharacter*> PlayerActors;
             GetAllActors(PlayerActors);
             for (auto P : PlayerActors) {
-                if (!IsValidPtr((uintptr_t)P) || !P->RootComponent) continue;
+                if (!IsValidPtr((kaddr)P) || !P->RootComponent) continue;
                 if (P->PlayerKey == localPlayerController->PlayerKey) { localPlayer = P; break; }
             }
         }
