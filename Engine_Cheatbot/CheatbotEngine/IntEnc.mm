@@ -355,20 +355,35 @@ void DrawPlayerESP(UCanvas* Canvas)
 
     if (Font)
     {
-        std::wstring enemyStr = std::to_wstring(totalEnemies);
-        std::wstring botStr   = std::to_wstring(totalBots);
+    // NEW Y POSITION (upar shift for clean gap)
+    float boxX = (float)g_screenWidth / 2.f - 15.f;
+    float boxY = 60.f; // <-- yaha change kiya (pehle 85 tha)
 
-        float boxWidth = 35.0f, boxHeight = 34.0f;
-        float startX = (float)g_screenWidth / 2.0f - boxWidth;
-        float startY = (float)g_screenHeight / 14.0f;
+    int totalCount = totalEnemies + totalBots;
+    std::string countStr = (totalCount == 0) ? "0" : std::to_string(totalCount);
 
-        DrawFilledRectangle(Canvas, FVector2D(startX, startY), boxWidth, boxHeight, FLinearColor(0.75f, 0.0f, 0.0f, 0.50f));
-        DrawFilledRectangle(Canvas, FVector2D(startX + boxWidth, startY), boxWidth, boxHeight, FLinearColor(0.35f, 0.35f, 0.35f, 0.50f));
+    FLinearColor boxColor = FLinearColor(1.f, 1.f, 1.f, 1.f); // White
+    FLinearColor textColor = (totalCount == 0)
+        ? FLinearColor(1.f, 0.f, 0.f, 1.f) // Red
+        : FLinearColor(0.f, 0.f, 0.f, 1.f); // Black
+    FLinearColor shadowColor = FLinearColor(1.f, 1.f, 1.f, 1.f); // White
 
-        Font->LegacyFontSize = 15;
-        DrawText(Canvas, FString(enemyStr.c_str()), FVector2D(startX + (boxWidth / 2.0f), startY + 8.0f), FLinearColor(1, 1, 1, 1), FLinearColor(0, 0, 0, 0));
-        DrawText(Canvas, FString(botStr.c_str()), FVector2D(startX + boxWidth + (boxWidth / 2.0f), startY + 8.0f), FLinearColor(1, 1, 1, 1), FLinearColor(0, 0, 0, 0));
+    DrawFilledRectangle(Canvas, FVector2D(boxX, boxY), 30.f, 34.f, boxColor);
+
+    if (Canvas && Font) {
+        Canvas->K2_DrawText(Font,
+                            FString(countStr.c_str()),
+                            FVector2D((float)g_screenWidth / 2.f, boxY + 5.f),
+                            textColor,
+                            1.f,
+                            {},
+                            {},
+                            true,
+                            true,
+                            true,
+                            shadowColor);
     }
+}
 }
 
 
