@@ -70,9 +70,9 @@ ASTExtraPlayerController *localPlayerController = 0;
 // ==========================================
 namespace {
     // Data / Object / Array pointers ke liye (8-byte aligned)
-    inline bool IsValidPtr(uintptr_t addr) {
-        return addr > 0x100000000ULL && addr < 0x2000000000ULL;
-}
+   // inline bool IsValidPtr(uintptr_t addr) {
+    //    return addr > 0x100000000ULL && addr < 0x2000000000ULL;
+//}
 
     // Function / Code address ke liye (arm64 mein 4-byte aligned)
     
@@ -100,6 +100,22 @@ namespace {
     }
 }
 
+bool IsValidPtr(uintptr_t addr) {
+    return addr > 0x100000000 && addr < 0x2000000000;
+}
+
+kaddr getRealOffset(uintptr_t offset) {
+    return (unsigned long)_dyld_get_image_vmaddr_slide(0) + offset;
+}
+
+long CHEATBOTOWNER() {
+    return getRealOffset(0x109E108E8);
+}
+
+TNameEntryArray *GetGNames() {
+    return ((TNameEntryArray *(*)()) ((unsigned long)_dyld_get_image_vmaddr_slide(0) + 0x10491486C))();
+}
+/*
 uintptr_t CHEATBOTOWNER() {
     return GetShadowTrackerAddr(0x109E108E8ULL);
 }
@@ -113,7 +129,7 @@ TNameEntryArray *GetGNames() {
     auto fn = reinterpret_cast<FnType>(fnAddr);
     return fn();
 }
-
+*/
     
 UWorld *GetFullWorld() {
     auto gobjects = UObject::GUObjectArray->ObjObjects;
