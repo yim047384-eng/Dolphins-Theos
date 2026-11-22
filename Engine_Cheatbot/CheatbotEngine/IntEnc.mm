@@ -141,7 +141,7 @@ std::vector<AActor *> GetActors()
 {
     std::vector<AActor *> actors;
 
-    auto World = GetWorld();
+    auto World = GetFullWorld();
     if (!IsValidPtr(reinterpret_cast<uintptr_t>(World)))
         return actors;
 
@@ -200,8 +200,10 @@ void DrawFilledRectangle(UCanvas* Canvas, FVector2D Min, float Width, float Heig
         Canvas->K2_DrawLine(StartPos, EndPos, 1.f, Color);
     }
 }
-void DrawLine(UCanvas* Canvas, FVector2D from, FVector2D to, float thickness, FLinearColor color) {
-    Canvas->K2_DrawLine(from, to, thickness, color);
+static inline void DrawText(UCanvas* Canvas, const FString& Text, FVector2D Pos, FLinearColor Color, FLinearColor ShadowColor) {
+    if (!Canvas || !Font)
+        return;
+    Canvas->K2_DrawText(Font, Text, Pos, Color, 1.f, {}, {}, true, true, true, ShadowColor);
 }
 
 void DrawTextSafe(UCanvas* Canvas, FString Text, FVector2D Pos, FLinearColor Color, int size = 12) {
