@@ -200,10 +200,10 @@ void DrawFilledRectangle(UCanvas* Canvas, FVector2D Min, float Width, float Heig
         Canvas->K2_DrawLine(StartPos, EndPos, 1.f, Color);
     }
 }
-static inline void DrawText(UCanvas* Canvas, const FString& Text, FVector2D Pos, FLinearColor Color, FLinearColor ShadowColor) {
-    if (!Canvas || !Font)
+static inline void DrawLine(UCanvas* Canvas, FVector2D Start, FVector2D End, float Thickness, FLinearColor Color) {
+    if (!Canvas)
         return;
-    Canvas->K2_DrawText(Font, Text, Pos, Color, 1.f, {}, {}, true, true, true, ShadowColor);
+    Canvas->K2_DrawLine(Start, End, Thickness, Color);
 }
 
 void DrawTextSafe(UCanvas* Canvas, FString Text, FVector2D Pos, FLinearColor Color, int size = 12) {
