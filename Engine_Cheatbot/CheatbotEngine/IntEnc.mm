@@ -585,16 +585,13 @@ void *botcheatxd() {
 @implementation JHCJDrawView
 
 + (void)load {
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(8 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        if (Cheatbotlp) botcheatxd();
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(10* NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        if(Cheatbotlp) { botcheatxd(); }
     });
-    
     FName::GNames = GetGNames();
-    while (!FName::GNames) {
-        FName::GNames = GetGNames();
-        sleep(1);
-    }
-    UObject::GUObjectArray = (FUObjectArray *)(CHEATBOTOWNER());
+    while (!FName::GNames) { FName::GNames = GetGNames(); sleep(1); }
+    UObject::GUObjectArray = (FUObjectArray *) (CHEATBOTOWNER());
 }
+
 
 @end
