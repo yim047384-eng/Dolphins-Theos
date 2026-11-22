@@ -68,7 +68,7 @@ ASTExtraPlayerController *localPlayerController = 0;
 // ==========================================
 // ========== HELPERS =======================
 // ==========================================
-namespace {
+/*namespace {
     // Data / Object / Array pointers ke liye (8-byte aligned)
    // inline bool IsValidPtr(uintptr_t addr) {
     //    return addr > 0x100000000ULL && addr < 0x2000000000ULL;
@@ -99,6 +99,7 @@ namespace {
         return GetShadowTrackerSlide() + offset;
     }
 }
+*/
 
 bool IsValidPtr(uintptr_t addr) {
     return addr > 0x100000000 && addr < 0x2000000000;
@@ -418,31 +419,24 @@ void DrawMSG(UCanvas* Canvas) {
 
 
 void *(*oriCheatbot)(UGameViewportClient* ViewportClient, UCanvas* Canvas);
-void *hookCheatbot(UGameViewportClient* ViewportClient, UCanvas* Canvas) {
-    if (!IsValidPtr(reinterpret_cast<uintptr_t>(Canvas))) return nullptr;
+void *hookCheatbot(UGameViewportClient* ViewportClient, UCanvas* Canvas){
+    if (!Canvas) return nullptr;
     g_screenWidth  = Canvas->SizeX;
     g_screenHeight = Canvas->SizeY;
-
+    
     static bool loadFont = false;
     if (!loadFont) { LoadFont(); loadFont = true; }
-    if (!IsValidPtr(reinterpret_cast<uintptr_t>(Font))) return nullptr;
-
+    if (!Font) return nullptr;
+    
     auto GWorld = GetFullWorld();
-    if (IsValidPtr(reinterpret_cast<uintptr_t>(GWorld)) &&
-        IsValidPtr(reinterpret_cast<uintptr_t>(GWorld->NetDriver)) &&
-        IsValidPtr(reinterpret_cast<uintptr_t>(GWorld->NetDriver->ServerConnection))) {
-
+    if (GWorld && GWorld->NetDriver && GWorld->NetDriver->ServerConnection) {
         localPlayerController = (ASTExtraPlayerController*)GWorld->NetDriver->ServerConnection->PlayerController;
-        if (IsValidPtr(reinterpret_cast<uintptr_t>(localPlayerController))) {
+        if (localPlayerController) {
             std::vector<ASTExtraPlayerCharacter*> PlayerActors;
             GetAllActors(PlayerActors);
             for (auto P : PlayerActors) {
-                if (!IsValidPtr(reinterpret_cast<uintptr_t>(P))) continue;
-                if (!IsValidPtr(reinterpret_cast<uintptr_t>(P->RootComponent))) continue;
-                if (P->PlayerKey == localPlayerController->PlayerKey) {
-                    localPlayer = P;
-                    break;
-                }
+                if (!IsValidPtr((uintptr_t)P) || !P->RootComponent) continue;
+                if (P->PlayerKey == localPlayerController->PlayerKey) { localPlayer = P; break; }
             }
         }
     }
