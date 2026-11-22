@@ -136,56 +136,17 @@ UWorld *GetFullWorld() {
 
 
 
-
-std::vector<AActor *> GetActors()
-{
-    std::vector<AActor *> actors;
-
-    auto World = GetFullWorld();
-    if (!IsValidPtr(reinterpret_cast<uintptr_t>(World)))
-        return actors;
-
-    auto PersistentLevel = World->PersistentLevel;
-    if (!IsValidPtr(reinterpret_cast<uintptr_t>(PersistentLevel)))
-        return actors;
-
-    struct GovnoArray
-    {
-        uintptr_t base;
-        int32_t count;
-        int32_t max;
-    };
-
-    using FnType = GovnoArray* (*)(uintptr_t);
-    uintptr_t fnAddr = GetShadowTrackerAddr(0x105C96B1CULL);
-    if (!IsValidCodePtr(fnAddr))
-        return actors;
-
-    auto fn = reinterpret_cast<FnType>(fnAddr);
-    GovnoArray* arrPtr = fn(reinterpret_cast<uintptr_t>(PersistentLevel));
-    if (!IsValidPtr(reinterpret_cast<uintptr_t>(arrPtr)))
-        return actors;
-
-    GovnoArray Actors = *arrPtr;
-    if (!IsValidPtr(Actors.base) || Actors.count <= 0 || Actors.count > 65536)
-        return actors;
-
-    actors.reserve(static_cast<size_t>(Actors.count));
-    for (int32_t i = 0; i < Actors.count; i++)
-    {
-        uintptr_t entryAddr = Actors.base + (static_cast<uintptr_t>(i) * sizeof(uintptr_t));
-        if (!IsValidPtr(entryAddr))
-            continue;
-
-        uintptr_t Actor = *reinterpret_cast<uintptr_t*>(entryAddr);
-        if (IsValidPtr(Actor))
-        {
-            actors.push_back(reinterpret_cast<AActor*>(Actor));
+template <class T> void GetAllActors(std::vector<T *> &Actors) {
+    UGameplayStatics* gGameplayStatics = (UGameplayStatics*)UGameplayStatics::StaticClass();
+    auto GWorld = GetFullWorld();
+    if (GWorld) {
+        TArray<AActor *> Actors2;
+        gGameplayStatics->GetAllActorsOfClass((UObject *)GWorld, T::StaticClass(), &Actors2);
+        for (int i = 0; i < Actors2.Num(); i++) {
+            Actors.push_back((T *)Actors2[i]);
         }
     }
-    return actors;
 }
-
 
 void DrawLine(UCanvas* Canvas, FVector2D posFrom, FVector2D posTo, float Thickness, FLinearColor Color) {
     Canvas->K2_DrawLine({posFrom.X, posFrom.Y}, {posTo.X, posTo.Y}, Thickness, Color);
@@ -237,7 +198,7 @@ void *LoadFont() {
 // ==========================================
 // ========== ESP RENDER ====================
 // ==========================================
-
+/*
 void DrawPlayerESP(UCanvas* Canvas)
 {
     if (!Canvas || !localPlayer || !localPlayerController)
@@ -385,7 +346,44 @@ void DrawPlayerESP(UCanvas* Canvas)
     }
 }
 }
+*/
+void DrawPlayerESP(UCanvas* Canvas) {
+    if (!Canvas || !localPlayer || !localPlayerController) return;
+    
+    auto GWorld = GetFullWorld();
+    if (!GWorld) return;
+    
+    std::vector<ASTExtraPlayerCharacter*> Actors;
+    GetAllActors(Actors);
+    
+    int totalEnemies = 0;
+    int totalBots = 0;
+    
+    for (auto Player : Actors) {
+        if (!IsValidAddress((uintptr_t)Player) || !Player || !Player->RootComponent) continue;
+        if (Player->PlayerKey == localPlayerController->PlayerKey || Player->TeamID == localPlayerController->TeamID || Player->bDead || Player->bHidden) continue;
+        
+        float Distance = localPlayer->GetDistanceTo(Player) / 100.f;
+        if (Distance > 500.f) continue;
+        
+        if (Player->bEnsure) totalBots++;
+        else totalEnemies++;
 
+        FVector HeadPos = Player->GetBonePos("Head", {0, 0, 0});
+        FVector RootPos = Player->GetBonePos("Root", {0, 0, 0});
+        FVector2D Head2D, Root2D;
+        
+        if (!UGameplayStatics::ProjectWorldToScreen(localPlayerController, HeadPos, true, &Head2D) || 
+            !UGameplayStatics::ProjectWorldToScreen(localPlayerController, RootPos, true, &Root2D)) continue;
+        
+        bool IsVisible = localPlayerController->LineOfSightTo(Player, {0, 0, 0}, true); 
+        FLinearColor color = IsVisible ? FLinearColor(0.f, 1.f, 0.f, 1.f) : FLinearColor(1.f, 0.f, 0.f, 1.f);
+        
+        // --- LINE ESP ---
+        if (isLineEsp) {
+            DrawLine(Canvas, {g_screenWidth / 2.f, 0.f}, {Head2D.X, Head2D.Y}, 1.5f, color);
+        }
+    }}
 
 void DrawMSG(UCanvas* Canvas) {
     if (!Canvas || !Font) return;
@@ -399,55 +397,38 @@ void DrawMSG(UCanvas* Canvas) {
                  FLinearColor(1.0f, 0.15f, 0.15f, 0.9f), 16);
 }
 
+
 // ==========================================
 // ========== HOOKING =======================
 // ==========================================
 
+
+
 void *(*oriCheatbot)(UGameViewportClient* ViewportClient, UCanvas* Canvas);
-
-void *hookCheatbot(UGameViewportClient* ViewportClient, UCanvas* Canvas)
-{
-    if (!Canvas)
-        return nullptr;
-
+void *hookCheatbot(UGameViewportClient* ViewportClient, UCanvas* Canvas) {
+    if (!IsValidAddress(reinterpret_cast<uintptr_t>(Canvas))) return nullptr;
     g_screenWidth  = Canvas->SizeX;
     g_screenHeight = Canvas->SizeY;
 
     static bool loadFont = false;
-    if (!loadFont)
-    {
-        LoadFont();
-        loadFont = true;
-    }
-    if (!Font)
-        return nullptr;
+    if (!loadFont) { LoadFont(); loadFont = true; }
+    if (!IsValidAddress(reinterpret_cast<uintptr_t>(Font))) return nullptr;
 
     auto GWorld = GetFullWorld();
-    if (IsValidPtr(reinterpret_cast<uintptr_t>(GWorld)) &&
-        IsValidPtr(reinterpret_cast<uintptr_t>(GWorld->NetDriver)) &&
-        IsValidPtr(reinterpret_cast<uintptr_t>(GWorld->NetDriver->ServerConnection)))
-    {
+    if (IsValidAddress(reinterpret_cast<uintptr_t>(GWorld)) &&
+        IsValidAddress(reinterpret_cast<uintptr_t>(GWorld->NetDriver)) &&
+        IsValidAddress(reinterpret_cast<uintptr_t>(GWorld->NetDriver->ServerConnection))) {
+
         localPlayerController = (ASTExtraPlayerController*)GWorld->NetDriver->ServerConnection->PlayerController;
-        if (IsValidPtr(reinterpret_cast<uintptr_t>(localPlayerController)))
-        {
-            localPlayer = nullptr;
-            auto Actors = GetActors();
-            for (auto &Actor : Actors)
-            {
-                if (!Actor || !IsValidPtr(reinterpret_cast<uintptr_t>(Actor)))
-                    continue;
-
-                if (Actor->IsA(ASTExtraPlayerCharacter::StaticClass()))
-                {
-                    auto P = (ASTExtraPlayerCharacter *)Actor;
-                    if (!IsValidPtr(reinterpret_cast<uintptr_t>(P->RootComponent)))
-                        continue;
-
-                    if (P->PlayerKey == localPlayerController->PlayerKey)
-                    {
-                        localPlayer = P;
-                        break;
-                    }
+        if (IsValidAddress(reinterpret_cast<uintptr_t>(localPlayerController))) {
+            std::vector<ASTExtraPlayerCharacter*> PlayerActors;
+            GetAllActors(PlayerActors);
+            for (auto P : PlayerActors) {
+                if (!IsValidAddress(reinterpret_cast<uintptr_t>(P))) continue;
+                if (!IsValidAddress(reinterpret_cast<uintptr_t>(P->RootComponent))) continue;
+                if (P->PlayerKey == localPlayerController->PlayerKey) {
+                    localPlayer = P;
+                    break;
                 }
             }
         }
@@ -455,12 +436,9 @@ void *hookCheatbot(UGameViewportClient* ViewportClient, UCanvas* Canvas)
 
     DrawMSG(Canvas);
     DrawPlayerESP(Canvas);
-
-    if (oriCheatbot)
-        return oriCheatbot(ViewportClient, Canvas);
-
-    return nullptr;
+    return oriCheatbot(ViewportClient, Canvas);
 }
+
 
 void *botcheatxd() {
     if (!Cheatbotlp) return 0;
