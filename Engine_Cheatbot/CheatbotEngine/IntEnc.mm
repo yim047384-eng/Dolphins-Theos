@@ -433,50 +433,7 @@ void *hookCheatbot(UGameViewportClient* ViewportClient, UCanvas* Canvas){
 }
 
 
-void* DumpPostRenderOffset() {
-    uintptr_t baseAddr = 0;
-    for (int i = 0; i < _dyld_image_count(); i++) {
-        const char* name = _dyld_get_image_name(i);
-        if (name && strstr(name, "ShadowTrackerExtra")) {
-            baseAddr = (uintptr_t)_dyld_get_image_header(i);
-            break;
-        }
-    }
-    
-    if (!baseAddr) {
-        NSLog(@"[Cheatbot] Error: ShadowTrackerExtra base not found!");
-        return nullptr;
-    }
 
-    auto CheatBotObj = (FUObjectArray *)(CHEATBOTOWNER());
-    if (!CheatBotObj) return nullptr;
-
-    auto gobjects = CheatBotObj->ObjObjects;
-    for (int i = 0; i < gobjects.Num(); i++) {
-        if (auto obj = gobjects.GetByIndex(i)) {
-            if (obj->IsA(UGameViewportClient::StaticClass())) {
-                auto View = (UGameViewportClient *)obj;
-                auto vTable = (void**)(View->VTable);
-                
-                if (vTable && vTable[134]) {
-                    uintptr_t funcAddr = (uintptr_t)vTable[134];
-                    uintptr_t offset = funcAddr - baseAddr;
-                    
-                    NSString *docPath = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
-                    NSString *filePath = [docPath stringByAppendingPathComponent:@"offset.txt"];
-                    
-                    NSString *content = [NSString stringWithFormat:@"ShadowTrackerExtra Base: 0x%lx\nPostRender Address: 0x%lx\nPostRender Offset: 0x%lx\n", 
-                                        (unsigned long)baseAddr, (unsigned long)funcAddr, (unsigned long)offset];
-                    [content writeToFile:filePath atomically:YES encoding:NSUTF8StringEncoding error:nil];
-                    
-                    NSLog(@"[Cheatbot] Offset saved: %@", filePath);
-                    return (void*)offset;
-                }
-            }
-        }
-    }
-    return nullptr;
-}
 
 /*
 void *botcheatxd() {
@@ -507,6 +464,112 @@ void *botcheatxd() {
 }
 */
 
+// lang: C++17, file: VTableLogger.hpp, target: iOS ARM64
+// vtable slots → txt file: index | byte_offset | real_offset
+
+
+
+inline uintptr_t GetLibBase(const char *libName)
+{
+    uint32_t n = _dyld_image_count();
+    for (uint32_t i = 0; i < n; i++) {
+        const char *name = _dyld_get_image_name(i);
+        if (!name) continue;
+        const char *b = strrchr(name, '/');
+        b = b ? b + 1 : name;
+        if (strcmp(b, libName) == 0)
+            return (uintptr_t)_dyld_get_image_vmaddr_slide(i);
+    }
+    return 0;
+}
+
+// ── Single function log to file ───────────────────────────────────────────────
+inline void LogFuncToFile(
+    std::ofstream &file,
+    uintptr_t      ClassAddr,
+    uint32_t       index,       // vtable array index
+    const char    *FuncName,
+    uintptr_t      LibBase)
+{
+    if (!ClassAddr) return;
+
+    uintptr_t vtable = *(uintptr_t *)ClassAddr;
+    if (!vtable) return;
+
+    uintptr_t FuncAddr = *(uintptr_t *)(vtable + (uintptr_t)index * 8);
+    if (!FuncAddr) return;
+
+    uintptr_t RealOffset  = FuncAddr - LibBase;
+    uintptr_t ByteInVTable = (uintptr_t)index * 8;
+
+    file << "[" << index << "]"
+         << "\tByteOff=0x" << std::hex << ByteInVTable
+         << "\tRealOffset=0x" << RealOffset
+         << "\t" << FuncName
+         << "\n";
+}
+
+// ── Full vtable dump to .txt ──────────────────────────────────────────────────
+inline void DumpVTableToFile(
+    uintptr_t   ClassAddr,
+    uint32_t    count,          // number of slots to dump
+    uintptr_t   LibBase,
+    const char *ClassName,
+    const char *outPath)        // e.g. Documents/vtable_dump.txt
+{
+    if (!ClassAddr) return;
+
+    uintptr_t vtable = *(uintptr_t *)ClassAddr;
+    if (!vtable) return;
+
+    std::ofstream file(outPath, std::ios::out | std::ios::trunc);
+    if (!file.is_open()) return;
+
+    file << "VTable Dump: " << ClassName << "\n"
+         << "LibBase:     0x" << std::hex << LibBase  << "\n"
+         << "VTable Ptr:  0x" << vtable               << "\n"
+         << "Slots:       " << std::dec << count       << "\n"
+         << "─────────────────────────────────────────────\n"
+         << "Index\tByteOff\t\tRealOffset\n"
+         << "─────────────────────────────────────────────\n";
+
+    for (uint32_t i = 0; i < count; i++) {
+        uintptr_t FuncAddr = *(uintptr_t *)(vtable + (uintptr_t)i * 8);
+        if (!FuncAddr) continue;
+
+        uintptr_t RealOffset   = FuncAddr - LibBase;
+        uintptr_t ByteInVTable = (uintptr_t)i * 8;
+
+        file << std::dec << i
+             << "\t0x" << std::hex << ByteInVTable
+             << "\t\t0x" << RealOffset
+             << "\n";
+    }
+
+    file.flush();
+    file.close();
+}
+
+// ── Usage wrapper — call this from your hook thread ──────────────────────────
+inline void DumpVTableForObject(
+    uintptr_t   ObjAddr,
+    uint32_t    slots,
+    const char *ClassName,
+    const char *libName = "ShadowTrackerExtra")
+{
+    uintptr_t base = GetLibBase(libName);
+    if (!base) return;
+
+    // iOS Documents path
+    NSString *docDir = NSSearchPathForDirectoriesInDomains(
+        NSDocumentDirectory, NSUserDomainMask, YES)[0];
+    NSString *outPath = [docDir stringByAppendingPathComponent:
+        [NSString stringWithFormat:@"vtable_%s.txt", ClassName]];
+
+    DumpVTableToFile(ObjAddr, slots, base, ClassName, [outPath UTF8String]);
+}
+
+
 void *botcheatxd() {
     if (!Cheatbotlp) return 0;
     
@@ -523,10 +586,12 @@ void *botcheatxd() {
                 auto View = (UGameViewportClient *)obj;
                 auto vTable = (void**)(View->VTable);
                 if (vTable && vTable[134] != (void*)hookCheatbot) {
+                    // 1. Pehle asli vTable[134] ka offset dump kar lo (overwrite hone se pehle)
+                    DumpVTableForObject((uintptr_t)View, 300, "UGameViewportClient");
+
+                    // 2. Uske baad hook install karo
                     oriCheatbot = decltype(oriCheatbot)(vTable[134]);
                     vTable[134] = (void*)hookCheatbot;
-                    
-                    DumpPostRenderOffset(); // <-- Ye line add ki hai
                     
                     hooked = true;
                     break;
