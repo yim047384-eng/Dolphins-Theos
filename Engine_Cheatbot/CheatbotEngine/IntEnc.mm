@@ -68,11 +68,11 @@ ASTExtraPlayerController *localPlayerController = 0;
 // ==========================================
 // ========== HELPERS =======================
 // ==========================================
-/*namespace {
+namespace {
     // Data / Object / Array pointers ke liye (8-byte aligned)
-   // inline bool IsValidPtr(uintptr_t addr) {
-    //    return addr > 0x100000000ULL && addr < 0x2000000000ULL;
-//}
+    inline bool IsValidPtr(uintptr_t addr) {
+       return addr > 0x100000000ULL && addr < 0x2000000000ULL;
+}
 
     // Function / Code address ke liye (arm64 mein 4-byte aligned)
     
@@ -99,9 +99,9 @@ ASTExtraPlayerController *localPlayerController = 0;
         return GetShadowTrackerSlide() + offset;
     }
 }
-*/
 
-bool IsValidPtr(kaddr addr) {
+
+/*bool IsValidPtr(kaddr addr) {
     return addr > 0x100000000 && addr < 0x2000000000;
 }
 
@@ -116,7 +116,7 @@ long CHEATBOTOWNER() {
 TNameEntryArray *GetGNames() {
     return ((TNameEntryArray *(*)()) ((unsigned long)_dyld_get_image_vmaddr_slide(0) + 0x10491486C))();
 }
-/*
+*/
 uintptr_t CHEATBOTOWNER() {
     return GetShadowTrackerAddr(0x109E108E8ULL);
 }
@@ -130,7 +130,7 @@ TNameEntryArray *GetGNames() {
     auto fn = reinterpret_cast<FnType>(fnAddr);
     return fn();
 }
-*/
+
     
 UWorld *GetFullWorld() {
     auto gobjects = UObject::GUObjectArray->ObjObjects;
@@ -375,7 +375,7 @@ void DrawPlayerESP(UCanvas* Canvas) {
     int totalBots = 0;
     
     for (auto Player : Actors) {
-        if (!IsValidPtr((kaddr)Player) || !Player || !Player->RootComponent) continue;
+        if (!IsValidPtr((uintptr_t)Player) || !Player || !Player->RootComponent) continue;
         if (Player->PlayerKey == localPlayerController->PlayerKey || Player->TeamID == localPlayerController->TeamID || Player->bDead || Player->bHidden) continue;
         
         float Distance = localPlayer->GetDistanceTo(Player) / 100.f;
@@ -436,7 +436,7 @@ void *hookCheatbot(UGameViewportClient* ViewportClient, UCanvas* Canvas){
             std::vector<ASTExtraPlayerCharacter*> PlayerActors;
             GetAllActors(PlayerActors);
             for (auto P : PlayerActors) {
-                if (!IsValidPtr((kaddr)P) || !P->RootComponent) continue;
+                if (!IsValidPtr((uintptr_t)P) || !P->RootComponent) continue;
                 if (P->PlayerKey == localPlayerController->PlayerKey) { localPlayer = P; break; }
             }
         }
