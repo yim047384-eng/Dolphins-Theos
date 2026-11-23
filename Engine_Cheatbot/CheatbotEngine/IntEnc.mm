@@ -448,6 +448,50 @@ void *hookCheatbot(UGameViewportClient* ViewportClient, UCanvas* Canvas){
 }
 
 
+namespace {
+    inline uintptr_t GetShadowTrackerSlideForDump() {
+        uint32_t count = _dyld_image_count();
+        for (uint32_t i = 0; i < count; ++i) {
+            const char* name = _dyld_get_image_name(i);
+            if (name && strstr(name, "ShadowTrackerExtra") != nullptr) {
+                return static_cast<uintptr_t>(_dyld_get_image_vmaddr_slide(i));
+            }
+        }
+        return static_cast<uintptr_t>(_dyld_get_image_vmaddr_slide(0));
+    }
+
+    inline void DumpPostRenderOffsetToTxt(uintptr_t fnLiveAddr, int vtableIndex) {
+        static bool dumped = false;
+        if (dumped || fnLiveAddr == 0)
+            return;
+
+        uintptr_t slide = GetShadowTrackerSlideForDump();
+        uintptr_t offsetWithBase = (fnLiveAddr >= slide) ? (fnLiveAddr - slide) : 0;
+
+        NSString* docsDir = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
+        NSString* outPath = [docsDir stringByAppendingPathComponent:@"postrender_offset.txt"];
+
+        FILE* fp = std::fopen([outPath UTF8String], "w");
+        if (!fp) {
+            fp = std::fopen("/tmp/postrender_offset.txt", "w");
+        }
+
+        if (fp) {
+            std::fprintf(fp,
+                         "VTable Index: %d\n"
+                         "Live Addr:    0x%llx\n"
+                         "ASLR Slide:   0x%llx\n"
+                         "Offset:       0x%llx\n",
+                         vtableIndex,
+                         static_cast<unsigned long long>(fnLiveAddr),
+                         static_cast<unsigned long long>(slide),
+                         static_cast<unsigned long long>(offsetWithBase));
+            std::fclose(fp);
+            dumped = true;
+        }
+    }
+} 
+/*
 void *botcheatxd() {
     if (!Cheatbotlp) return 0;
     
@@ -474,7 +518,37 @@ void *botcheatxd() {
     }
     return 0;
 }
+*/
 
+void *botcheatxd() {
+    if (!Cheatbotlp) return 0;
+
+    static bool hooked = false;
+    if (hooked) return 0;
+
+    auto CheatBotObj = (FUObjectArray *)(CHEATBOTOWNER());
+    if (!CheatBotObj) return 0;
+
+    auto gobjects = CheatBotObj->ObjObjects;
+    for (int i = 0; i < gobjects.Num(); i++) {
+        if (auto obj = gobjects.GetByIndex(i)) {
+            if (obj->IsA(UGameViewportClient::StaticClass())) {
+                auto View = (UGameViewportClient *)obj;
+                auto vTable = (void**)(View->VTable);
+                if (vTable && vTable[134] != (void*)hookCheatbot) {
+                    uintptr_t postRenderAddr = reinterpret_cast<uintptr_t>(vTable[134]);
+                    DumpPostRenderOffsetToTxt(postRenderAddr, 134);
+
+                    oriCheatbot = decltype(oriCheatbot)(vTable[134]);
+                    vTable[134] = (void*)hookCheatbot;
+                    hooked = true;
+                    break;
+                }
+            }
+        }
+    }
+    return 0;
+}
 // ==========================================
 // ========== IMGUI MENU ====================
 // ==========================================
