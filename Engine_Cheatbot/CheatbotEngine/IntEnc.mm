@@ -29,6 +29,7 @@
 #import <Metal/Metal.h>
 #import <MetalKit/MetalKit.h>
 #import <AVFoundation/AVFoundation.h>
+#include <fstream>
 
 using namespace std;
 using namespace SDK;
@@ -101,22 +102,6 @@ namespace {
 }
 
 
-/*bool IsValidPtr(kaddr addr) {
-    return addr > 0x100000000 && addr < 0x2000000000;
-}
-
-kaddr getRealOffset(kaddr offset) {
-    return (unsigned long)_dyld_get_image_vmaddr_slide(0) + offset;
-}
-
-long CHEATBOTOWNER() {
-    return getRealOffset(0x109E108E8);
-}
-
-TNameEntryArray *GetGNames() {
-    return ((TNameEntryArray *(*)()) ((unsigned long)_dyld_get_image_vmaddr_slide(0) + 0x10491486C))();
-}
-*/
 uintptr_t CHEATBOTOWNER() {
     return GetShadowTrackerAddr(0x109E108E8ULL);
 }
@@ -448,49 +433,51 @@ void *hookCheatbot(UGameViewportClient* ViewportClient, UCanvas* Canvas){
 }
 
 
-namespace {
-    inline uintptr_t GetShadowTrackerSlideForDump() {
-        uint32_t count = _dyld_image_count();
-        for (uint32_t i = 0; i < count; ++i) {
-            const char* name = _dyld_get_image_name(i);
-            if (name && strstr(name, "ShadowTrackerExtra") != nullptr) {
-                return static_cast<uintptr_t>(_dyld_get_image_vmaddr_slide(i));
+void* DumpPostRenderOffset() {
+    uintptr_t baseAddr = 0;
+    for (int i = 0; i < _dyld_image_count(); i++) {
+        const char* name = _dyld_get_image_name(i);
+        if (name && strstr(name, "ShadowTrackerExtra")) {
+            baseAddr = (uintptr_t)_dyld_get_image_header(i);
+            break;
+        }
+    }
+    
+    if (!baseAddr) {
+        NSLog(@"[Cheatbot] Error: ShadowTrackerExtra base not found!");
+        return nullptr;
+    }
+
+    auto CheatBotObj = (FUObjectArray *)(CHEATBOTOWNER());
+    if (!CheatBotObj) return nullptr;
+
+    auto gobjects = CheatBotObj->ObjObjects;
+    for (int i = 0; i < gobjects.Num(); i++) {
+        if (auto obj = gobjects.GetByIndex(i)) {
+            if (obj->IsA(UGameViewportClient::StaticClass())) {
+                auto View = (UGameViewportClient *)obj;
+                auto vTable = (void**)(View->VTable);
+                
+                if (vTable && vTable[134]) {
+                    uintptr_t funcAddr = (uintptr_t)vTable[134];
+                    uintptr_t offset = funcAddr - baseAddr;
+                    
+                    NSString *docPath = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
+                    NSString *filePath = [docPath stringByAppendingPathComponent:@"offset.txt"];
+                    
+                    NSString *content = [NSString stringWithFormat:@"ShadowTrackerExtra Base: 0x%lx\nPostRender Address: 0x%lx\nPostRender Offset: 0x%lx\n", 
+                                        (unsigned long)baseAddr, (unsigned long)funcAddr, (unsigned long)offset];
+                    [content writeToFile:filePath atomically:YES encoding:NSUTF8StringEncoding error:nil];
+                    
+                    NSLog(@"[Cheatbot] Offset saved: %@", filePath);
+                    return (void*)offset;
+                }
             }
         }
-        return static_cast<uintptr_t>(_dyld_get_image_vmaddr_slide(0));
     }
+    return nullptr;
+}
 
-    inline void DumpPostRenderOffsetToTxt(uintptr_t fnLiveAddr, int vtableIndex) {
-        static bool dumped = false;
-        if (dumped || fnLiveAddr == 0)
-            return;
-
-        uintptr_t slide = GetShadowTrackerSlideForDump();
-        uintptr_t offsetWithBase = (fnLiveAddr >= slide) ? (fnLiveAddr - slide) : 0;
-
-        NSString* docsDir = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
-        NSString* outPath = [docsDir stringByAppendingPathComponent:@"postrender_offset.txt"];
-
-        FILE* fp = std::fopen([outPath UTF8String], "w");
-        if (!fp) {
-            fp = std::fopen("/tmp/postrender_offset.txt", "w");
-        }
-
-        if (fp) {
-            std::fprintf(fp,
-                         "VTable Index: %d\n"
-                         "Live Addr:    0x%llx\n"
-                         "ASLR Slide:   0x%llx\n"
-                         "Offset:       0x%llx\n",
-                         vtableIndex,
-                         static_cast<unsigned long long>(fnLiveAddr),
-                         static_cast<unsigned long long>(slide),
-                         static_cast<unsigned long long>(offsetWithBase));
-            std::fclose(fp);
-            dumped = true;
-        }
-    }
-} 
 /*
 void *botcheatxd() {
     if (!Cheatbotlp) return 0;
@@ -522,13 +509,13 @@ void *botcheatxd() {
 
 void *botcheatxd() {
     if (!Cheatbotlp) return 0;
-
+    
     static bool hooked = false;
     if (hooked) return 0;
-
+    
     auto CheatBotObj = (FUObjectArray *)(CHEATBOTOWNER());
     if (!CheatBotObj) return 0;
-
+    
     auto gobjects = CheatBotObj->ObjObjects;
     for (int i = 0; i < gobjects.Num(); i++) {
         if (auto obj = gobjects.GetByIndex(i)) {
@@ -536,11 +523,11 @@ void *botcheatxd() {
                 auto View = (UGameViewportClient *)obj;
                 auto vTable = (void**)(View->VTable);
                 if (vTable && vTable[134] != (void*)hookCheatbot) {
-                    uintptr_t postRenderAddr = reinterpret_cast<uintptr_t>(vTable[134]);
-                    DumpPostRenderOffsetToTxt(postRenderAddr, 134);
-
                     oriCheatbot = decltype(oriCheatbot)(vTable[134]);
                     vTable[134] = (void*)hookCheatbot;
+                    
+                    DumpPostRenderOffset(); // <-- Ye line add ki hai
+                    
                     hooked = true;
                     break;
                 }
