@@ -42,7 +42,7 @@ public:
         // address = ASLR slide already applied — add static offset directly
         auto info = GetExecutableInfo();
         if (!info.address) return 0;
-        return info.address + 0x109ABC718;
+        return info.address + 0x109E108E8;
     }
 
     uintptr_t GetNamesPtr() const override
@@ -52,7 +52,7 @@ public:
         auto info = GetExecutableInfo();
         if (!info.address) return 0;
 
-        uintptr_t fn_addr = info.address + 0x104734D98;
+        uintptr_t fn_addr = info.address + 0x10491486C;
         using GetNamesFn = uintptr_t(*)();
         auto fn = reinterpret_cast<GetNamesFn>(fn_addr);
         return fn();
