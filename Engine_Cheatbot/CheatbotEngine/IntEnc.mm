@@ -137,15 +137,11 @@ static uintptr_t image_slide_by_name(const char* name) {
     return 0;
 }
 
-uintptr_t GetFullWorld() {
+UWorld* GetFullWorld() {
     uintptr_t slide = image_slide_by_name("shadowtrackerextra");
-    if (!slide) return 0;
-
+    if (!slide) return nullptr;
     using Fn = UWorld*(*)(uintptr_t);
-    auto fn = reinterpret_cast<Fn>(slide + gworld_off::FUN);
-    uintptr_t arg = slide + gworld_off::DATA;
-
-    return (uintptr_t)fn(arg);   // UWorld* -> uintptr_t
+    return reinterpret_cast<Fn>(slide + gworld_off::FUN)(slide + gworld_off::DATA);
 }
 
 template <class T> void GetAllActors(std::vector<T *> &Actors) {
