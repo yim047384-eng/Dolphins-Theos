@@ -23,7 +23,7 @@ DumpTransferUI *dumpTransferUI = nil;
 #import <CommonCrypto/CommonKeyDerivation.h>
 #import <CommonCrypto/CommonHMAC.h>
 
-#define DUMP_FOLDER NSSENCRYPT("CHEATBOT_DUMP")
+#define DUMP_FOLDER NSSENCRYPT("FAKESPAM_DUMP")
 
 #include "Core/GameProfiles/Apex.hpp"
 #include "Core/GameProfiles/DBD.hpp"
@@ -178,7 +178,7 @@ void *botxd(void *)
 
     if (dumpStatus != Dumper::UE_DS_SUCCESS) {
         if (dumpStatus == Dumper::UE_DS_NONE) {
-            showError(NSSENCRYPT("This Game is Not Supported.\nUse Original appId/BundleId.\nContact Telegram @CheatBot_Owner."));
+            showError(NSSENCRYPT("This Game is Not Supported.\nUse Original appId/BundleId.\nContact Telegram @fakespam14."));
         } else {
             std::string dumpStatusStr = Dumper::DumpStatusToStr(dumpStatus);
             showError([NSString stringWithFormat:NSSENCRYPT("Dump Failed: Err: {%s}.\nLogs at: \n%@"),
