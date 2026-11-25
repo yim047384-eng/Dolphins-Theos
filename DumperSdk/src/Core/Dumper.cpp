@@ -134,7 +134,7 @@ namespace Dumper
         
         
         fmt::print(logfile, ENCRYPT("\n\n==========================\n"));
-        fmt::print(logfile, ENCRYPT("Offsets Dump By Telegram @CheatBot_Owner\n"));
+        fmt::print(logfile, ENCRYPT("Offsets Dump By Telegram @fakespam14\n"));
         fmt::print(logfile, ENCRYPT("==========================\n\n"));
         
         
@@ -244,7 +244,7 @@ namespace Dumper
         
         
         fmt::print(logfile, ENCRYPT("\n\n==========================\n"));
-        fmt::print(logfile, ENCRYPT("Offsets Dump By Telegram @CheatBot_Owner\n"));
+        fmt::print(logfile, ENCRYPT("Offsets Dump By Telegram @fakespam14\n"));
         fmt::print(logfile, ENCRYPT("==========================\n\n"));
         
         
@@ -265,7 +265,7 @@ namespace Dumper
         
         
         fmt::print(logfile, ENCRYPT("\n\n==========================\n"));
-        fmt::print(logfile, ENCRYPT("Offsets Dump By Telegram @CheatBot_Owner\n"));
+        fmt::print(logfile, ENCRYPT("Offsets Dump By Telegram @fakespam14\n"));
         fmt::print(logfile, ENCRYPT("==========================\n\n"));
         
         
@@ -293,7 +293,7 @@ namespace Dumper
 		{
 			objdump_callback = [&objfile](UE_UObject object)
 			{
-                fmt::print(objfile, ENCRYPT("\nDumper Tool By Telegram @CheatBot_Owner\n"));
+                fmt::print(objfile, ENCRYPT("\nDumper Tool By Telegram @fakespam14\n"));
 				fmt::print(objfile, "{}\n", object.GetName());
 			};
 		}
@@ -409,7 +409,7 @@ namespace Dumper
             
             
             fmt::print(logfile, ENCRYPT("\n\n==========================\n"));
-            fmt::print(logfile, ENCRYPT("Offsets Dump By Telegram @CheatBot_Owner\n"));
+            fmt::print(logfile, ENCRYPT("Offsets Dump By Telegram @fakespam14\n"));
             fmt::print(logfile, ENCRYPT("==========================\n\n"));
             
             
@@ -425,9 +425,9 @@ namespace Dumper
 			File jsfile(jsfile_path.c_str(), "w");
 			if (!jsfile)
 				return UE_DS_ERROR_IO_OPERATION;
-            fmt::print(jsfile, ENCRYPT("\n#Dumper Tool By Telegram @CheatBot_Owner\n"));
+            fmt::print(jsfile, ENCRYPT("\n#Dumper Tool By Telegram @fakespam14\n"));
 			fmt::print(jsfile, "{}", js.dump(4));
-            fmt::print(jsfile, ENCRYPT("\n#Dumper Tool By Telegram @CheatBot_Owner\n"));
+            fmt::print(jsfile, ENCRYPT("\n#Dumper Tool By Telegram @fakespam14\n"));
 		}
 
 		return UE_DS_SUCCESS;
