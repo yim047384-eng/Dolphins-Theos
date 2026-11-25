@@ -2,7 +2,7 @@
 
 #import "../includes/SCLAlertView/SCLAlertView.h"
 
-#define ___ALERT_TITLE "CHEATBOT"
+#define ___ALERT_TITLE "fakespam14"
 
 void showWaiting(NSString *msg, SCLAlertView* __strong *alert);
 void dismisWaiting(SCLAlertView *al);
