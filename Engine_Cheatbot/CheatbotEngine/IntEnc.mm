@@ -117,23 +117,36 @@ TNameEntryArray *GetGNames() {
 }
 
     
-UWorld *GetFullWorld() {
-    auto gobjects = UObject::GUObjectArray->ObjObjects;
-    for (int i = 0; i < gobjects.Num(); i++) {
-        if (auto obj = gobjects.GetByIndex(i)) {
-            if (obj->IsA(UEngine::StaticClass())) {
-                auto GEngine = (UEngine *)obj;
-                if (GEngine && GEngine->GameViewport) {
-                    Font = GEngine->MediumFont;
-                    return GEngine->GameViewport->World;
-                }
-            }
-        }
+
+
+
+// GWorldFun: 0x10285d9e8  (function — UWorld* return karta hai)
+// GWorldData: 0x108f98458 (data — function ko argument)
+namespace gworld_off {
+    constexpr uintptr_t FUN  = 0x1019A422C;
+    constexpr uintptr_t DATA = 0x10A029E80;
+}
+
+static uintptr_t image_slide_by_name(const char* name) {
+    uint32_t n = _dyld_image_count();
+    for (uint32_t i = 0; i < n; i++) {
+        const char* nm = _dyld_get_image_name(i);
+        if (nm && strstr(nm, name))
+            return (uintptr_t)_dyld_get_image_vmaddr_slide(i);
     }
     return 0;
 }
 
+uintptr_t GetFullWorld() {
+    uintptr_t slide = image_slide_by_name("shadowtrackerextra");
+    if (!slide) return 0;
 
+    using Fn = UWorld*(*)(uintptr_t);
+    auto fn = reinterpret_cast<Fn>(slide + gworld_off::FUN);
+    uintptr_t arg = slide + gworld_off::DATA;
+
+    return (uintptr_t)fn(arg);   // UWorld* -> uintptr_t
+}
 
 template <class T> void GetAllActors(std::vector<T *> &Actors) {
     UGameplayStatics* gGameplayStatics = (UGameplayStatics*)UGameplayStatics::StaticClass();
@@ -435,7 +448,7 @@ void *hookCheatbot(UGameViewportClient* ViewportClient, UCanvas* Canvas){
 
 
 
-/*
+
 void *botcheatxd() {
     if (!Cheatbotlp) return 0;
     
@@ -454,282 +467,6 @@ void *botcheatxd() {
                 if (vTable && vTable[134] != (void*)hookCheatbot) {
                     oriCheatbot = decltype(oriCheatbot)(vTable[134]);
                     vTable[134] = (void*)hookCheatbot;
-                    hooked = true;
-                    break;
-                }
-            }
-        }
-    }
-    return 0;
-}
-*/
-
-// lang: C++17, file: VTableLogger.hpp, target: iOS ARM64
-// vtable slots → txt file: index | byte_offset | real_offset
-
-
-
-inline uintptr_t GetLibBase(const char *libName)
-{
-    uint32_t n = _dyld_image_count();
-    for (uint32_t i = 0; i < n; i++) {
-        const char *name = _dyld_get_image_name(i);
-        if (!name) continue;
-        const char *b = strrchr(name, '/');
-        b = b ? b + 1 : name;
-        if (strcmp(b, libName) == 0)
-            return (uintptr_t)_dyld_get_image_vmaddr_slide(i);
-    }
-    return 0;
-}
-
-// ── Single function log to file ───────────────────────────────────────────────
-inline void LogFuncToFile(
-    std::ofstream &file,
-    uintptr_t      ClassAddr,
-    uint32_t       index,       // vtable array index
-    const char    *FuncName,
-    uintptr_t      LibBase)
-{
-    if (!ClassAddr) return;
-
-    uintptr_t vtable = *(uintptr_t *)ClassAddr;
-    if (!vtable) return;
-
-    uintptr_t FuncAddr = *(uintptr_t *)(vtable + (uintptr_t)index * 8);
-    if (!FuncAddr) return;
-
-    uintptr_t RealOffset  = FuncAddr - LibBase;
-    uintptr_t ByteInVTable = (uintptr_t)index * 8;
-
-    file << "[" << index << "]"
-         << "\tByteOff=0x" << std::hex << ByteInVTable
-         << "\tRealOffset=0x" << RealOffset
-         << "\t" << FuncName
-         << "\n";
-}
-
-// ── Full vtable dump to .txt ──────────────────────────────────────────────────
-inline void DumpVTableToFile(
-    uintptr_t   ClassAddr,
-    uint32_t    count,          // number of slots to dump
-    uintptr_t   LibBase,
-    const char *ClassName,
-    const char *outPath)        // e.g. Documents/vtable_dump.txt
-{
-    if (!ClassAddr) return;
-
-    uintptr_t vtable = *(uintptr_t *)ClassAddr;
-    if (!vtable) return;
-
-    std::ofstream file(outPath, std::ios::out | std::ios::trunc);
-    if (!file.is_open()) return;
-
-    file << "VTable Dump: " << ClassName << "\n"
-         << "LibBase:     0x" << std::hex << LibBase  << "\n"
-         << "VTable Ptr:  0x" << vtable               << "\n"
-         << "Slots:       " << std::dec << count       << "\n"
-         << "─────────────────────────────────────────────\n"
-         << "Index\tByteOff\t\tRealOffset\n"
-         << "─────────────────────────────────────────────\n";
-
-    for (uint32_t i = 0; i < count; i++) {
-        uintptr_t FuncAddr = *(uintptr_t *)(vtable + (uintptr_t)i * 8);
-        if (!FuncAddr) continue;
-
-        uintptr_t RealOffset   = FuncAddr - LibBase;
-        uintptr_t ByteInVTable = (uintptr_t)i * 8;
-
-        file << std::dec << i
-             << "\t0x" << std::hex << ByteInVTable
-             << "\t\t0x" << RealOffset
-             << "\n";
-    }
-
-    file.flush();
-    file.close();
-}
-
-// ── Usage wrapper — call this from your hook thread ──────────────────────────
-inline void DumpVTableForObject(
-    uintptr_t   ObjAddr,
-    uint32_t    slots,
-    const char *ClassName,
-    const char *libName = "ShadowTrackerExtra")
-{
-    uintptr_t base = GetLibBase(libName);
-    if (!base) return;
-
-    // iOS Documents path
-    NSString *docDir = NSSearchPathForDirectoriesInDomains(
-        NSDocumentDirectory, NSUserDomainMask, YES)[0];
-    NSString *outPath = [docDir stringByAppendingPathComponent:
-        [NSString stringWithFormat:@"vtable_%s.txt", ClassName]];
-
-    DumpVTableToFile(ObjAddr, slots, base, ClassName, [outPath UTF8String]);
-}
-
-#ifndef UPROPERTY_OFFSET_MEMBER
-#define UPROPERTY_OFFSET_MEMBER 0x34
-#endif
-
-static constexpr uint64_t kDefaultImageBase47 = 0x100000000ULL;
-static constexpr uint64_t kRawGetGObjects47   = 0x109E108E8ULL; // 4.7
-static constexpr uint64_t kRawGetGNames47     = 0x10491486CULL; // 4.7
-static constexpr bool kPrintUnslidStyle47    = true;
-
-namespace Brutal {
-
-    static inline uintptr_t GetRuntimeBase47() {
-        uintptr_t base = (uintptr_t)_dyld_get_image_header(0);
-        if (!base) {
-            base = (uintptr_t)_dyld_get_image_vmaddr_slide(0) + (uintptr_t)kDefaultImageBase47;
-        }
-        return base;
-    }
-
-    static inline bool IsSafeAddr47(uintptr_t ptr) {
-        return (ptr >= 0x100000000ULL && ptr <= 0x00007FFFFFFFFFFFULL) && ((ptr & 0x7) == 0);
-    }
-
-    static inline uint64_t FormatFuncAddr47(uintptr_t rawFunc, uintptr_t runtimeBase) {
-        uintptr_t clean = rawFunc & 0x0000000FFFFFFFFFULL;
-        if (clean < runtimeBase) {
-            return static_cast<uint64_t>(clean);
-        }
-        uintptr_t rva = clean - runtimeBase;
-        return kPrintUnslidStyle47
-            ? (kDefaultImageBase47 + static_cast<uint64_t>(rva))
-            : static_cast<uint64_t>(rva);
-    }
-
-    static void AutoDumpSDK47(const char* outPath = "/var/mobile/Documents/SDK_4_7_Fixed.txt") {
-        // GUObjectArray aur GNames ready hone ka wait (max ~15 sec)
-        int retries = 0;
-        while ((!UObject::GUObjectArray || !FName::GNames) && retries < 15) {
-            sleep(1);
-            retries++;
-        }
-
-        if (!UObject::GUObjectArray || !FName::GNames) {
-            NSLog(@"[AutoSDK47] GUObjectArray ya GNames nahi mila, dump skip.");
-            return;
-        }
-
-        uintptr_t runtimeBase = GetRuntimeBase47();
-        uintptr_t gobjsAddr   = runtimeBase + (uintptr_t)(kRawGetGObjects47 - kDefaultImageBase47);
-        uintptr_t gnamesAddr  = runtimeBase + (uintptr_t)(kRawGetGNames47   - kDefaultImageBase47);
-
-        FILE* fp = std::fopen(outPath, "w");
-        if (!fp) {
-            NSLog(@"[AutoSDK47] File open nahi hui: %s", outPath);
-            return;
-        }
-
-        std::fprintf(fp, "// Auto SDK Dump - 4.7 | Base: 0x%llx | GObj: 0x%llx | GName: 0x%llx\n\n",
-                     static_cast<unsigned long long>(runtimeBase),
-                     static_cast<unsigned long long>(gobjsAddr),
-                     static_cast<unsigned long long>(gnamesAddr));
-
-        auto& objArray = UObject::GetGlobalObjects();
-        std::unordered_set<uintptr_t> seenStructs;
-
-        UClass* structClass   = UStruct::StaticClass();
-        UClass* functionClass = UFunction::StaticClass();
-        UClass* propertyClass = UProperty::StaticClass();
-
-        int32_t total = objArray.Num();
-        for (int32_t i = 0; i < total; ++i) {
-            UObject* obj = objArray.GetByIndex(i);
-            if (!obj || !IsSafeAddr47(reinterpret_cast<uintptr_t>(obj))) {
-                continue;
-            }
-
-            if (structClass && obj->IsA(structClass)) {
-                UStruct* st = reinterpret_cast<UStruct*>(obj);
-                uintptr_t stAddr = reinterpret_cast<uintptr_t>(st);
-                if (!seenStructs.insert(stAddr).second) {
-                    continue;
-                }
-
-                std::string stName = st->GetName();
-                if (stName.empty()) {
-                    continue;
-                }
-
-                std::string superName = "None";
-                if (st->SuperStruct && IsSafeAddr47(reinterpret_cast<uintptr_t>(st->SuperStruct))) {
-                    superName = st->SuperStruct->GetName();
-                }
-
-                std::fprintf(fp, "// %s (Super: %s) | PropertySize: 0x%X\n",
-                             stName.c_str(), superName.c_str(), st->PropertySize);
-                std::fprintf(fp, "struct %s {\n", stName.c_str());
-
-                int guard = 0;
-                for (UField* field = st->Children; field != nullptr && guard++ < 4096; field = field->Next) {
-                    uintptr_t fieldAddr = reinterpret_cast<uintptr_t>(field);
-                    if (!IsSafeAddr47(fieldAddr)) {
-                        break;
-                    }
-
-                    std::string fieldName = field->GetName();
-                    if (fieldName.empty()) {
-                        continue;
-                    }
-
-                    if (functionClass && field->IsA(functionClass)) {
-                        UFunction* fn = reinterpret_cast<UFunction*>(field);
-                        uintptr_t rawFunc = reinterpret_cast<uintptr_t>(fn->Func);
-                        uint64_t addrVal = FormatFuncAddr47(rawFunc, runtimeBase);
-                        std::fprintf(fp, "    // Function %s; // 0x%llx\n",
-                                     fieldName.c_str(),
-                                     static_cast<unsigned long long>(addrVal));
-                    } else if (propertyClass && field->IsA(propertyClass)) {
-                        int32_t propOffset = 0;
-                        std::memcpy(&propOffset,
-                                    reinterpret_cast<const void*>(fieldAddr + UPROPERTY_OFFSET_MEMBER),
-                                    sizeof(int32_t));
-                        if (propOffset >= 0 && propOffset < 0x20000) {
-                            std::fprintf(fp, "    // %s; // Offset: 0x%X\n",
-                                         fieldName.c_str(), propOffset);
-                        }
-                    }
-                }
-
-                std::fprintf(fp, "};\n\n");
-            }
-        }
-
-        std::fflush(fp);
-        std::fclose(fp);
-        NSLog(@"[AutoSDK47] Dump complete -> %s", outPath);
-    }
-
-} // namespace SDK
-void *botcheatxd() {
-    if (!Cheatbotlp) return 0;
-    
-    static bool hooked = false;
-    if (hooked) return 0;
-    
-    auto CheatBotObj = (FUObjectArray *)(CHEATBOTOWNER());
-    if (!CheatBotObj) return 0;
-    
-    auto gobjects = CheatBotObj->ObjObjects;
-    for (int i = 0; i < gobjects.Num(); i++) {
-        if (auto obj = gobjects.GetByIndex(i)) {
-            if (obj->IsA(UGameViewportClient::StaticClass())) {
-                auto View = (UGameViewportClient *)obj;
-                auto vTable = (void**)(View->VTable);
-                if (vTable && vTable[134] != (void*)hookCheatbot) {
-                    // 1. Pehle asli vTable[134] ka offset dump kar lo (overwrite hone se pehle)
-                  //  DumpVTableForObject((uintptr_t)View, 300, "UGameViewportClient");
-
-                  Brutal::AutoDumpSDK47("/var/mobile/Documents/SDK_4_7_Fixed.txt");  // 2. Uske baad hook install karo
-                    oriCheatbot = decltype(oriCheatbot)(vTable[134]);
-                    vTable[134] = (void*)hookCheatbot;
-                    
                     hooked = true;
                     break;
                 }
