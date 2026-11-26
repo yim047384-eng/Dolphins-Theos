@@ -122,9 +122,10 @@ TNameEntryArray *GetGNames() {
 
 // GWorldFun: 0x10285d9e8  (function — UWorld* return karta hai)
 // GWorldData: 0x108f98458 (data — function ko argument)
-namespace gworld_off {
+namespace off {
     constexpr uintptr_t FUN  = 0x1019A422C;
     constexpr uintptr_t DATA = 0x10A029E80;
+    constexpr uintptr_t ACTORARRAY_FUN = 0x105C96B1C; //
 }
 
 static uintptr_t image_slide_by_name(const char* name) {
@@ -141,26 +142,47 @@ UWorld* GetFullWorld() {
     uintptr_t slide = image_slide_by_name("ShadowTrackerExtra");
     if (!slide) return nullptr;
     using Fn = UWorld*(*)(uintptr_t);
-    return reinterpret_cast<Fn>(slide + gworld_off::FUN)(slide + gworld_off::DATA);
+    return reinterpret_cast<Fn>(slide + off::FUN)(slide + off::DATA);
 }
 
-template <class T> void GetAllActors(std::vector<T *> &Actors) {
-    UGameplayStatics* gGameplayStatics = (UGameplayStatics*)UGameplayStatics::StaticClass();
-    auto GWorld = GetFullWorld();
-    if (GWorld) {
-        TArray<AActor *> Actors2;
-        gGameplayStatics->GetAllActorsOfClass((UObject *)GWorld, T::StaticClass(), &Actors2);
-        for (int i = 0; i < Actors2.Num(); i++) {
-            Actors.push_back((T *)Actors2[i]);
-        }
+std::vector<AActor*> GetActors() {
+    auto World = reinterpret_cast<UWorld*>(GetFullWorld());
+    if (!World)
+        return {};
+
+    auto PersistentLevel = World->PersistentLevel;   // SDK member, same raha
+    if (!PersistentLevel)
+        return {};
+
+    struct GovnoArray {
+        uintptr_t base;
+        int32_t count;
+        int32_t max;
+    };
+
+    uintptr_t slide = image_slide_by_name("ShadowTrackerExtra");
+    if (!slide) return {};
+
+    using ActorArrayFn = GovnoArray*(*)(uintptr_t);
+    auto actorArrayFn = reinterpret_cast<ActorArrayFn>(slide + off::ACTORARRAY_FUN);
+
+    GovnoArray* arr = actorArrayFn(reinterpret_cast<uintptr_t>(PersistentLevel));
+    if (!arr || arr->count <= 0) return {};
+
+    std::vector<AActor*> actors;
+    actors.reserve(arr->count);
+    for (int i = 0; i < arr->count; i++) {
+        uintptr_t Actor = *reinterpret_cast<uintptr_t*>(arr->base + i * sizeof(uintptr_t));
+        if (Actor)
+            actors.push_back(reinterpret_cast<AActor*>(Actor));
     }
+    return actors;
 }
-
 void DrawLine(UCanvas* Canvas, FVector2D posFrom, FVector2D posTo, float Thickness, FLinearColor Color) {
     Canvas->K2_DrawLine({posFrom.X, posFrom.Y}, {posTo.X, posTo.Y}, Thickness, Color);
 }
 
-/*void DrawFilledRectangle(UCanvas* Canvas, FVector2D Min, float Width, float Height, FLinearColor Color) {
+void DrawFilledRectangle(UCanvas* Canvas, FVector2D Min, float Width, float Height, FLinearColor Color) {
     for (float i = 0.f; i < Height; i += 1.f) {
         // Purana: Min + FVector2D(0.f, i)
         FVector2D StartPos = { Min.X + 0.f, Min.Y + i };
@@ -170,7 +192,7 @@ void DrawLine(UCanvas* Canvas, FVector2D posFrom, FVector2D posTo, float Thickne
         
         Canvas->K2_DrawLine(StartPos, EndPos, 1.f, Color);
     }
-}*/
+}
 
 void DrawText(UCanvas* Canvas, FString Text, FVector2D Pos, FLinearColor Color, FLinearColor OutlineColor, int FontSize, bool isCenter) {
     if (!Canvas || !Font)
@@ -207,7 +229,7 @@ void *LoadFont() {
 // ==========================================
 // ========== ESP RENDER ====================
 // ==========================================
-/*
+
 void DrawPlayerESP(UCanvas* Canvas)
 {
     if (!Canvas || !localPlayer || !localPlayerController)
@@ -355,7 +377,7 @@ void DrawPlayerESP(UCanvas* Canvas)
     }
 }
 }
-*/
+/*
 void DrawPlayerESP(UCanvas* Canvas) {
     if (!Canvas || !localPlayer || !localPlayerController) return;
     
@@ -393,6 +415,7 @@ void DrawPlayerESP(UCanvas* Canvas) {
             DrawLine(Canvas, {g_screenWidth / 2.f, 0.f}, {Head2D.X, Head2D.Y}, 1.5f, color);
         }
     }}
+*/
 
 void DrawMSG(UCanvas* Canvas) {
     if (!Canvas || !Font) return;
@@ -411,7 +434,7 @@ void DrawMSG(UCanvas* Canvas) {
 // ========== HOOKING =======================
 // ==========================================
 
-
+/*
 
 void *(*oriCheatbot)(UGameViewportClient* ViewportClient, UCanvas* Canvas);
 void *hookCheatbot(UGameViewportClient* ViewportClient, UCanvas* Canvas){
@@ -432,6 +455,44 @@ void *hookCheatbot(UGameViewportClient* ViewportClient, UCanvas* Canvas){
             for (auto P : PlayerActors) {
                 if (!IsValidPtr((uintptr_t)P) || !P->RootComponent) continue;
                 if (P->PlayerKey == localPlayerController->PlayerKey) { localPlayer = P; break; }
+            }
+        }
+    }
+
+    DrawMSG(Canvas);
+    DrawPlayerESP(Canvas);
+    return oriCheatbot(ViewportClient, Canvas);
+}
+*/
+void* (*oriCheatbot)(UGameViewportClient* ViewportClient, UCanvas* Canvas);
+void* hookCheatbot(UGameViewportClient* ViewportClient, UCanvas* Canvas) {
+    if (!Canvas) return nullptr;
+    g_screenWidth  = Canvas->SizeX;
+    g_screenHeight = Canvas->SizeY;
+
+    static bool loadFont = false;
+    if (!loadFont) { LoadFont(); loadFont = true; }
+    if (!Font) return nullptr;
+
+    auto GWorld = GetFullWorld();
+    if (GWorld && GWorld->NetDriver && GWorld->NetDriver->ServerConnection) {
+        localPlayerController = (ASTExtraPlayerController*)
+            GWorld->NetDriver->ServerConnection->PlayerController;
+
+        if (localPlayerController) {
+            // GetActors + IsA filter (offset-base)
+            auto Actors = GetActors();
+            for (auto& Actor : Actors) {
+                if (!Actor || !IsValidPtr((uintptr_t)Actor)) continue;
+                if (!Actor->IsA(ASTExtraPlayerCharacter::StaticClass())) continue;
+
+                auto P = reinterpret_cast<ASTExtraPlayerCharacter*>(Actor);
+                if (!P->RootComponent) continue;
+
+                if (P->PlayerKey == localPlayerController->PlayerKey) {
+                    localPlayer = P;
+                    break;
+                }
             }
         }
     }
