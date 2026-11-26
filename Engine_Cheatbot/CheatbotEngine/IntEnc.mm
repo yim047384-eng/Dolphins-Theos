@@ -138,7 +138,7 @@ static uintptr_t image_slide_by_name(const char* name) {
 }
 
 UWorld* GetFullWorld() {
-    uintptr_t slide = image_slide_by_name("shadowtrackerextra");
+    uintptr_t slide = image_slide_by_name("ShadowTrackerExtra");
     if (!slide) return nullptr;
     using Fn = UWorld*(*)(uintptr_t);
     return reinterpret_cast<Fn>(slide + gworld_off::FUN)(slide + gworld_off::DATA);
