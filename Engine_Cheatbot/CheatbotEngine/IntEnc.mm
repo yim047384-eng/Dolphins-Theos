@@ -120,12 +120,24 @@ TNameEntryArray *GetGNames() {
 
 
 
-// GWorldFun: 0x10285d9e8  (function — UWorld* return karta hai)
-// GWorldData: 0x108f98458 (data — function ko argument)
 namespace off {
-    constexpr uintptr_t FUN  = 0x1019A422C;
-    constexpr uintptr_t DATA = 0x10A029E80;
-    constexpr uintptr_t ACTORARRAY_FUN = 0x105C96B1C; //
+    // ============ WORLD (offset-base) ============
+    constexpr uintptr_t FUN            = 0x1019A422C; // gWorld function
+    constexpr uintptr_t DATA           = 0x10A029E80; // gWorld arg
+    constexpr uintptr_t ACTORARRAY_FUN = 0x105C96B1C; // PersistentLevel -> actor array
+
+    // ============ WORLD CHAIN (offset-base) ============
+    constexpr uintptr_t UWORLD_PERSISTENTLEVEL = 0x30; // UWorld::PersistentLevel
+    constexpr uintptr_t UWORLD_NETDRIVER       = 0x38; // UWorld::NetDriver
+    constexpr uintptr_t NETDRIVER_SERVERCONN   = 0x78; // UNetDriver::ServerConnection
+    constexpr uintptr_t SERVERCONN_PLAYERCTRL  = 0x30; // UNetConnection::PlayerController
+
+    // ============ PLAYER CHARACTER (offset-base) ============
+    constexpr uintptr_t PC_ROOTCOMPONENT = 0x208; // TODO — ASTExtraPlayerCharacter::RootComponent
+    // constexpr uintptr_t PC_PLAYERKEY  = 0x0; // TODO — PlayerKey
+    // constexpr uintptr_t PC_HEALTH     = 0x0; // TODO — Health
+    // constexpr uintptr_t PC_BISDEAD    = 0x0; // TODO — bIsDead
+    // constexpr uintptr_t PC_TEAMID     = 0x0; // TODO — TeamID
 }
 
 static uintptr_t image_slide_by_name(const char* name) {
@@ -145,20 +157,22 @@ UWorld* GetFullWorld() {
     return reinterpret_cast<Fn>(slide + off::FUN)(slide + off::DATA);
 }
 
+// ---- safe read helper ----
+template <typename T>
+static inline T safe_read(uintptr_t addr) {
+    if (!addr) return T{};
+    return *reinterpret_cast<T*>(addr);
+}
+
+// ---- GetActors, safe_read ke saath ----
 std::vector<AActor*> GetActors() {
-    auto World = reinterpret_cast<UWorld*>(GetFullWorld());
-    if (!World)
-        return {};
+    auto World = GetFullWorld();
+    if (!World) return {};
 
-    auto PersistentLevel = World->PersistentLevel;   // SDK member, same raha
-    if (!PersistentLevel)
-        return {};
+    auto PersistentLevel = safe_read<ULevel*>((uintptr_t)World + 0x30); // SDK se hi tha, offset bhi de diya
+    if (!PersistentLevel) return {};
 
-    struct GovnoArray {
-        uintptr_t base;
-        int32_t count;
-        int32_t max;
-    };
+    struct GovnoArray { uintptr_t base; int32_t count; int32_t max; };
 
     uintptr_t slide = image_slide_by_name("ShadowTrackerExtra");
     if (!slide) return {};
@@ -166,18 +180,19 @@ std::vector<AActor*> GetActors() {
     using ActorArrayFn = GovnoArray*(*)(uintptr_t);
     auto actorArrayFn = reinterpret_cast<ActorArrayFn>(slide + off::ACTORARRAY_FUN);
 
-    GovnoArray* arr = actorArrayFn(reinterpret_cast<uintptr_t>(PersistentLevel));
+    GovnoArray* arr = actorArrayFn((uintptr_t)PersistentLevel);
     if (!arr || arr->count <= 0) return {};
 
     std::vector<AActor*> actors;
     actors.reserve(arr->count);
     for (int i = 0; i < arr->count; i++) {
-        uintptr_t Actor = *reinterpret_cast<uintptr_t*>(arr->base + i * sizeof(uintptr_t));
+        uintptr_t Actor = safe_read<uintptr_t>(arr->base + i * sizeof(uintptr_t));
         if (Actor)
             actors.push_back(reinterpret_cast<AActor*>(Actor));
     }
     return actors;
 }
+
 void DrawLine(UCanvas* Canvas, FVector2D posFrom, FVector2D posTo, float Thickness, FLinearColor Color) {
     Canvas->K2_DrawLine({posFrom.X, posFrom.Y}, {posTo.X, posTo.Y}, Thickness, Color);
 }
@@ -214,6 +229,12 @@ void DrawTextSafe(UCanvas* Canvas, FString Text, FVector2D Pos, FLinearColor Col
     Font->LegacyFontSize = size;
     Canvas->K2_DrawText(Font, Text, Pos, Color, 1.0f, FLinearColor(0,0,0,0), FVector2D(0,0), true, true, true, FLinearColor(0,0,0,1));
 }
+void DrawFilledRect(UCanvas* Canvas, FVector2D initial_pos, float w, float h, FLinearColor Color)
+{
+    for (float i = 0.f; i < h; i += 1.f)
+    Canvas->K2_DrawLine(FVector2D(initial_pos.X, initial_pos.Y + i), FVector2D(initial_pos.X + w, initial_pos.Y + i), 1.f, Color);
+}
+
 
 bool IsOnScreen(FVector2D pos, float margin = 50.f) {
     return pos.X > -margin && pos.X < g_screenWidth + margin &&
@@ -282,9 +303,49 @@ void DrawPlayerESP(UCanvas* Canvas)
              DrawLine(Canvas, {g_screenWidth / 2.f, 0.f}, {Head2D.X, Head2D.Y}, 1.5f, color);
             }
 
-    
+ if (isHpBarEsp) {
+float CurHP = Player->Health;
 
-            if (isHpBarEsp)
+if (CurHP < 0.0f)
+CurHP = 0.0f;
+else if (CurHP > Player->HealthMax)
+CurHP = Player->HealthMax;
+
+float MaxHP = Player->HealthMax > 0 ? Player->HealthMax : 1.0f;
+float HealthPercentage = CurHP / MaxHP;
+
+FLinearColor ColorHP;
+if (Player->bEnsure) {
+ColorHP = FLinearColor(0.0f, 1.0f, 0.0f, 1.0f);
+} else {
+if (HealthPercentage > 0.5f) {
+ColorHP = FLinearColor(0.0f, 1.0f, 0.0f, 1.0f);
+} else if (HealthPercentage > 0.2f) {
+ColorHP = FLinearColor(1.0f, 1.0f, 0.0f, 1.0f);
+} else {
+ColorHP = FLinearColor(1.0f, 0.0f, 0.0f, 1.0f);
+}
+}
+
+FVector AboveHead = Player->GetHeadLocation(true);
+AboveHead.Z += 25.0f;
+
+FVector2D AboveHeadSc;
+if (gGameplayStatics->ProjectWorldToScreen(localPlayerController, AboveHead, false, &AboveHeadSc)) {
+float BarWidth = 50.0f;
+float BarHeight = 4.0f;
+
+ FVector2D BarPos;
+BarPos.X = AboveHeadSc.X - BarWidth / 2.0f;
+BarPos.Y = AboveHeadSc.Y - BarHeight * 1.5f;
+
+FLinearColor BorderColor = Player->bEnsure ? COLOR_RED : COLOR_GREEN;
+DrawFilledRect(Canvas, {BarPos.X - 1.0f, BarPos.Y - 1.0f}, BarWidth + 2.0f, BarHeight + 2.0f, BorderColor); // bg
+DrawFilledRect(Canvas, {BarPos.X, BarPos.Y}, HealthPercentage * BarWidth, BarHeight, ColorHP); // fill
+}
+}
+
+        /*    if (isHpBarEsp)
             {
                 float maxHealth = (float)Player->HealthMax;
                 float curHealth = (float)Player->Health;
@@ -298,7 +359,8 @@ void DrawPlayerESP(UCanvas* Canvas)
                     DrawFilledRectangle(Canvas, HealthPos, 30.0f, 4.0f, FLinearColor(0, 0, 0, 1));
                     DrawFilledRectangle(Canvas, HealthPos, (CurHP * 30.0f) / maxHealth, 4.0f, ColorHP);
                 }
-            }
+            }*/
+            
 
             if (IsBone)
             {
@@ -377,45 +439,6 @@ void DrawPlayerESP(UCanvas* Canvas)
     }
 }
 }
-/*
-void DrawPlayerESP(UCanvas* Canvas) {
-    if (!Canvas || !localPlayer || !localPlayerController) return;
-    
-    auto GWorld = GetFullWorld();
-    if (!GWorld) return;
-    
-    std::vector<ASTExtraPlayerCharacter*> Actors;
-    GetAllActors(Actors);
-    
-    int totalEnemies = 0;
-    int totalBots = 0;
-    
-    for (auto Player : Actors) {
-        if (!IsValidPtr((uintptr_t)Player) || !Player || !Player->RootComponent) continue;
-        if (Player->PlayerKey == localPlayerController->PlayerKey || Player->TeamID == localPlayerController->TeamID || Player->bDead || Player->bHidden) continue;
-        
-        float Distance = localPlayer->GetDistanceTo(Player) / 100.f;
-        if (Distance > 500.f) continue;
-        
-        if (Player->bEnsure) totalBots++;
-        else totalEnemies++;
-
-        FVector HeadPos = Player->GetBonePos("Head", {0, 0, 0});
-        FVector RootPos = Player->GetBonePos("Root", {0, 0, 0});
-        FVector2D Head2D, Root2D;
-        
-        if (!UGameplayStatics::ProjectWorldToScreen(localPlayerController, HeadPos, true, &Head2D) || 
-            !UGameplayStatics::ProjectWorldToScreen(localPlayerController, RootPos, true, &Root2D)) continue;
-        
-        bool IsVisible = localPlayerController->LineOfSightTo(Player, {0, 0, 0}, true); 
-        FLinearColor color = IsVisible ? FLinearColor(0.f, 1.f, 0.f, 1.f) : FLinearColor(1.f, 0.f, 0.f, 1.f);
-        
-        // --- LINE ESP ---
-        if (isLineEsp) {
-            DrawLine(Canvas, {g_screenWidth / 2.f, 0.f}, {Head2D.X, Head2D.Y}, 1.5f, color);
-        }
-    }}
-*/
 
 void DrawMSG(UCanvas* Canvas) {
     if (!Canvas || !Font) return;
@@ -433,38 +456,8 @@ void DrawMSG(UCanvas* Canvas) {
 // ==========================================
 // ========== HOOKING =======================
 // ==========================================
-
-/*
-
-void *(*oriCheatbot)(UGameViewportClient* ViewportClient, UCanvas* Canvas);
-void *hookCheatbot(UGameViewportClient* ViewportClient, UCanvas* Canvas){
-    if (!Canvas) return nullptr;
-    g_screenWidth  = Canvas->SizeX;
-    g_screenHeight = Canvas->SizeY;
-    
-    static bool loadFont = false;
-    if (!loadFont) { LoadFont(); loadFont = true; }
-    if (!Font) return nullptr;
-    
-    auto GWorld = GetFullWorld();
-    if (GWorld && GWorld->NetDriver && GWorld->NetDriver->ServerConnection) {
-        localPlayerController = (ASTExtraPlayerController*)GWorld->NetDriver->ServerConnection->PlayerController;
-        if (localPlayerController) {
-            std::vector<ASTExtraPlayerCharacter*> PlayerActors;
-            GetAllActors(PlayerActors);
-            for (auto P : PlayerActors) {
-                if (!IsValidPtr((uintptr_t)P) || !P->RootComponent) continue;
-                if (P->PlayerKey == localPlayerController->PlayerKey) { localPlayer = P; break; }
-            }
-        }
-    }
-
-    DrawMSG(Canvas);
-    DrawPlayerESP(Canvas);
-    return oriCheatbot(ViewportClient, Canvas);
-}
-*/
 void* (*oriCheatbot)(UGameViewportClient* ViewportClient, UCanvas* Canvas);
+// ---- hook, safe_read ke saath ----
 void* hookCheatbot(UGameViewportClient* ViewportClient, UCanvas* Canvas) {
     if (!Canvas) return nullptr;
     g_screenWidth  = Canvas->SizeX;
@@ -475,23 +468,28 @@ void* hookCheatbot(UGameViewportClient* ViewportClient, UCanvas* Canvas) {
     if (!Font) return nullptr;
 
     auto GWorld = GetFullWorld();
-    if (GWorld && GWorld->NetDriver && GWorld->NetDriver->ServerConnection) {
-        localPlayerController = (ASTExtraPlayerController*)
-            GWorld->NetDriver->ServerConnection->PlayerController;
+    if (GWorld) {
+        auto NetDriver = safe_read<UNetDriver*>((uintptr_t)GWorld + off::UWORLD_NETDRIVER);
+        if (NetDriver) {
+            auto ServerConnection = safe_read<UNetConnection*>((uintptr_t)NetDriver + off::NETDRIVER_SERVERCONN);
+            if (ServerConnection) {
+                localPlayerController = safe_read<ASTExtraPlayerController*>(
+                    (uintptr_t)ServerConnection + off::SERVERCONN_PLAYERCTRL);
 
-        if (localPlayerController) {
-            // GetActors + IsA filter (offset-base)
-            auto Actors = GetActors();
-            for (auto& Actor : Actors) {
-                if (!Actor || !IsValidPtr((uintptr_t)Actor)) continue;
-                if (!Actor->IsA(ASTExtraPlayerCharacter::StaticClass())) continue;
+                if (localPlayerController) {
+                    auto Actors = GetActors();
+                    for (auto& Actor : Actors) {
+                        if (!Actor || !IsValidPtr((uintptr_t)Actor)) continue;
+                        if (!Actor->IsA(ASTExtraPlayerCharacter::StaticClass())) continue;
 
-                auto P = reinterpret_cast<ASTExtraPlayerCharacter*>(Actor);
-                if (!P->RootComponent) continue;
+                        auto P = reinterpret_cast<ASTExtraPlayerCharacter*>(Actor);
+                        if (!safe_read<USceneComponent*>((uintptr_t)P + off::PC_ROOTCOMPONENT)) continue;
 
-                if (P->PlayerKey == localPlayerController->PlayerKey) {
-                    localPlayer = P;
-                    break;
+                        if (P->PlayerKey == localPlayerController->PlayerKey) {
+                            localPlayer = P;
+                            break;
+                        }
+                    }
                 }
             }
         }
