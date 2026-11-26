@@ -331,7 +331,7 @@ FVector AboveHead = Player->GetHeadLocation(true);
 AboveHead.Z += 25.0f;
 
 FVector2D AboveHeadSc;
-if (gGameplayStatics->ProjectWorldToScreen(localPlayerController, AboveHead, false, &AboveHeadSc)) {
+if (UGameplayStatics::ProjectWorldToScreen(localPlayerController, AboveHead, false, &AboveHeadSc)) {
 float BarWidth = 50.0f;
 float BarHeight = 4.0f;
 
@@ -339,7 +339,10 @@ float BarHeight = 4.0f;
 BarPos.X = AboveHeadSc.X - BarWidth / 2.0f;
 BarPos.Y = AboveHeadSc.Y - BarHeight * 1.5f;
 
-FLinearColor BorderColor = Player->bEnsure ? COLOR_RED : COLOR_GREEN;
+FLinearColor BorderColor = Player->bEnsure
+    ? FLinearColor(1.0f, 0.0f, 0.0f, 1.0f)
+    : FLinearColor(0.0f, 1.0f, 0.0f, 1.0f);
+
 DrawFilledRect(Canvas, {BarPos.X - 1.0f, BarPos.Y - 1.0f}, BarWidth + 2.0f, BarHeight + 2.0f, BorderColor); // bg
 DrawFilledRect(Canvas, {BarPos.X, BarPos.Y}, HealthPercentage * BarWidth, BarHeight, ColorHP); // fill
 }
