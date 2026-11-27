@@ -122,24 +122,28 @@ TNameEntryArray *GetGNames() {
 
 namespace off {
     // ============ WORLD (offset-base) ============
-    constexpr uintptr_t FUN            = 0x1019A422C; // gWorld function
-    constexpr uintptr_t DATA           = 0x10A029E80; // gWorld arg
-    constexpr uintptr_t ACTORARRAY_FUN = 0x105C96B1C; // PersistentLevel -> actor array
+    constexpr uintptr_t FUN            = 0x1019A422C;
+    constexpr uintptr_t DATA           = 0x10A029E80;
+    constexpr uintptr_t ACTORARRAY_FUN = 0x105C96B1C;
 
-    // ============ WORLD CHAIN (offset-base) ============
-    constexpr uintptr_t UWORLD_PERSISTENTLEVEL = 0x30; // UWorld::PersistentLevel
-    constexpr uintptr_t UWORLD_NETDRIVER       = 0x38; // UWorld::NetDriver
-    constexpr uintptr_t NETDRIVER_SERVERCONN   = 0x78; // UNetDriver::ServerConnection
-    constexpr uintptr_t SERVERCONN_PLAYERCTRL  = 0x30; // UNetConnection::PlayerController
+    // ============ WORLD CHAIN ============
+    constexpr uintptr_t UWORLD_PERSISTENTLEVEL = 0x30;
+    constexpr uintptr_t UWORLD_NETDRIVER       = 0x38;
+    constexpr uintptr_t NETDRIVER_SERVERCONN   = 0x78;
+    constexpr uintptr_t SERVERCONN_PLAYERCTRL  = 0x30;
 
-    // ============ PLAYER CHARACTER (offset-base) ============
-    constexpr uintptr_t PC_ROOTCOMPONENT = 0x208; // TODO — ASTExtraPlayerCharacter::RootComponent
-    // constexpr uintptr_t PC_PLAYERKEY  = 0x0; // TODO — PlayerKey
-    // constexpr uintptr_t PC_HEALTH     = 0x0; // TODO — Health
-    // constexpr uintptr_t PC_BISDEAD    = 0x0; // TODO — bIsDead
-    // constexpr uintptr_t PC_TEAMID     = 0x0; // TODO — TeamID
+    // ============ PLAYER CHARACTER ============
+    constexpr uintptr_t PC_ROOTCOMPONENT = 0x208;
+
+    // ============ PLAYER KEY ============
+    constexpr uintptr_t CHAR_PLAYERKEY = 0x990; // UAECharacter
+    constexpr uintptr_t CTRL_PLAYERKEY = 0x920; // UAEPlayerController
+
+    // ============ CANVAS ============
+    constexpr uintptr_t CANVAS_SIZEX = 0x40;
+    constexpr uintptr_t CANVAS_SIZEY = 0x44;
 }
-
+    
 static uintptr_t image_slide_by_name(const char* name) {
     uint32_t n = _dyld_image_count();
     for (uint32_t i = 0; i < n; i++) {
@@ -479,21 +483,27 @@ void* hookCheatbot(UGameViewportClient* ViewportClient, UCanvas* Canvas) {
                 localPlayerController = safe_read<ASTExtraPlayerController*>(
                     (uintptr_t)ServerConnection + off::SERVERCONN_PLAYERCTRL);
 
-                if (localPlayerController) {
-                    auto Actors = GetActors();
-                    for (auto& Actor : Actors) {
-                        if (!Actor || !IsValidPtr((uintptr_t)Actor)) continue;
-                        if (!Actor->IsA(ASTExtraPlayerCharacter::StaticClass())) continue;
+    if (localPlayerController) {
+    auto Actors = GetActors();
+    for (auto& Actor : Actors) {
+        if (!Actor || !IsValidPtr((uintptr_t)Actor)) continue;
+        if (!Actor->IsA(ASTExtraPlayerCharacter::StaticClass())) continue;
 
-                        auto P = reinterpret_cast<ASTExtraPlayerCharacter*>(Actor);
-                        if (!safe_read<USceneComponent*>((uintptr_t)P + off::PC_ROOTCOMPONENT)) continue;
+        auto P = reinterpret_cast<ASTExtraPlayerCharacter*>(Actor);
+        if (!safe_read<USceneComponent*>((uintptr_t)P + off::PC_ROOTCOMPONENT)) continue;
 
-                        if (P->PlayerKey == localPlayerController->PlayerKey) {
-                            localPlayer = P;
-                            break;
-                        }
-                    }
-                }
+        // playerkey compare — offset-base
+        uint32_t pKey = safe_read<uint32_t>((uintptr_t)P + off::CHAR_PLAYERKEY);
+        uint32_t cKey = safe_read<uint32_t>((uintptr_t)localPlayerController + off::CTRL_PLAYERKEY);
+
+        printf("[key] pKey=%u cKey=%u\n", pKey, cKey);   // test print
+
+        if (pKey == cKey) {
+            localPlayer = P;
+            break;
+                   }
+                 }
+               }
             }
         }
     }
