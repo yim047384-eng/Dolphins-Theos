@@ -142,6 +142,11 @@ namespace off {
     // ============ CANVAS ============
     constexpr uintptr_t CANVAS_SIZEX = 0x40;
     constexpr uintptr_t CANVAS_SIZEY = 0x44;
+    // ============ CHARACTER FLAGS ============
+    constexpr uintptr_t BHIDDEN = 0xe8;  // AActor::bHidden (bool)
+    constexpr uintptr_t BDEAD   = 0xe8c; // STExtraCharacter::bDead (bool)
+    constexpr uintptr_t BENSURE = 0xa69; // UAECharacter::bEnsure (bool)
+    constexpr uintptr_t CHAR_TEAMID = 0x9a8; // UAECharacter::TeamID (int)
 }
     
 static uintptr_t image_slide_by_name(const char* name) {
@@ -254,7 +259,173 @@ void *LoadFont() {
 // ==========================================
 // ========== ESP RENDER ====================
 // ==========================================
+void DrawPlayerESP(UCanvas* Canvas) {
+    if (!Canvas || !localPlayer || !localPlayerController)
+        return;
 
+    auto GWorld = GetFullWorld();
+    if (!IsValidPtr((uintptr_t)GWorld))
+        return;
+
+    int totalEnemies = 0;
+    int totalBots = 0;
+
+    // local player ke values ek baar nikaal lo (loop me repeat nahi)
+    uint32_t lKey  = safe_read<uint32_t>((uintptr_t)localPlayer + off::CHAR_PLAYERKEY); // 0x990
+    uint32_t lTeam = safe_read<uint32_t>((uintptr_t)localPlayer + off::CHAR_TEAMID);    // 0x9a8
+
+    auto Actors = GetActors();
+    for (auto& Actor : Actors) {
+        if (!Actor || !IsValidPtr((uintptr_t)Actor))
+            continue;
+
+        if (!Actor->IsA(ASTExtraPlayerCharacter::StaticClass()))
+            continue;
+
+        auto Player = reinterpret_cast<ASTExtraPlayerCharacter*>(Actor);
+
+        // RootComponent check (0x208)
+        if (!safe_read<USceneComponent*>((uintptr_t)Player + off::PC_ROOTCOMPONENT))
+            continue;
+
+        // ---- offset-base filter ----
+        uint32_t pKey  = safe_read<uint32_t>((uintptr_t)Player + off::CHAR_PLAYERKEY); // 0x990
+        uint32_t pTeam = safe_read<uint32_t>((uintptr_t)Player + off::CHAR_TEAMID);    // 0x9a8
+        bool dead   = safe_read<bool>((uintptr_t)Player + off::BDEAD);    // 0xe8c
+        bool hidden = safe_read<bool>((uintptr_t)Player + off::BHIDDEN);  // 0xe8
+
+        // skip: khud, teammate, dead, hidden
+        if (pKey == lKey) continue;
+        if (pTeam == lTeam) continue;
+        if (dead || hidden) continue;
+
+        // bot vs enemy count
+        if (safe_read<bool>((uintptr_t)Player + off::BENSURE)) totalBots++; // 0xa69
+        else totalEnemies++;
+
+        // ---- distance (SDK function) ----
+        float Distance = localPlayer->GetDistanceTo(Player) / 100.f;
+        if (Distance > 500.f)
+            continue;
+
+        // ---- bone positions (SDK function) ----
+        FVector HeadPos = Player->GetBonePos("Head", {0, 0, 0});
+        FVector RootPos = Player->GetBonePos("Root", {0, 0, 0});
+        FVector2D Head2D, Root2D;
+
+        if (!UGameplayStatics::ProjectWorldToScreen(localPlayerController, HeadPos, true, &Head2D) ||
+            !UGameplayStatics::ProjectWorldToScreen(localPlayerController, RootPos, true, &Root2D))
+            continue;
+
+        // ---- visibility (SDK function) ----
+        bool IsVisible = localPlayerController->LineOfSightTo(Player, {0, 0, 0}, true);
+        FLinearColor color = IsVisible
+            ? FLinearColor(0.f, 1.f, 0.f, 1.f)   // visible — green
+            : FLinearColor(1.f, 0.f, 0.f, 1.f);  // hidden — red
+
+     
+            if (isLineEsp)
+            {
+             DrawLine(Canvas, {g_screenWidth / 2.f, 0.f}, {Head2D.X, Head2D.Y}, 1.5f, color);
+            }
+
+ 
+
+           if (isHpBarEsp)
+            {
+                float maxHealth = (float)Player->HealthMax;
+                float curHealth = (float)Player->Health;
+                if (maxHealth > 0.0f)
+                {
+                    float CurHP = std::max(0.f, std::min(curHealth, maxHealth));
+                    FLinearColor ColorHP = (CurHP / maxHealth > 0.5f) ? FLinearColor(0, 1, 0, 1) : ((CurHP / maxHealth > 0.2f) ? FLinearColor(1, 1, 0, 1) : FLinearColor(1, 0, 0, 1));
+                    FVector2D HealthPos = Head2D;
+                    HealthPos.X -= 15.0f;
+                    HealthPos.Y -= 12.0f;
+                    DrawFilledRectangle(Canvas, HealthPos, 30.0f, 4.0f, FLinearColor(0, 0, 0, 1));
+                    DrawFilledRectangle(Canvas, HealthPos, (CurHP * 30.0f) / maxHealth, 4.0f, ColorHP);
+                }
+            }
+            
+
+            if (IsBone)
+            {
+                FVector Pelvis = Player->GetBonePos("pelvis", {});
+                FVector neck = Player->GetBonePos("neck_01", {});
+                FVector upperL = Player->GetBonePos("upperarm_l", {});
+                FVector upperR = Player->GetBonePos("upperarm_r", {});
+                FVector lowerL = Player->GetBonePos("lowerarm_l", {});
+                FVector lowerR = Player->GetBonePos("lowerarm_r", {});
+                FVector handL = Player->GetBonePos("hand_l", {});
+                FVector handR = Player->GetBonePos("hand_r", {});
+                FVector calfL = Player->GetBonePos("calf_l", {});
+                FVector calfR = Player->GetBonePos("calf_r", {});
+                FVector footL = Player->GetBonePos("foot_l", {});
+                FVector footR = Player->GetBonePos("foot_r", {});
+
+                FVector2D PelvisP, neckP, upperLP, upperRP, lowerLP, lowerRP, handLP, handRP, calfLP, calfRP, footLP, footRP;
+                if (UGameplayStatics::ProjectWorldToScreen(localPlayerController, Pelvis, false, &PelvisP) &&
+                    UGameplayStatics::ProjectWorldToScreen(localPlayerController, neck, false, &neckP) &&
+                    UGameplayStatics::ProjectWorldToScreen(localPlayerController, upperL, false, &upperLP) &&
+                    UGameplayStatics::ProjectWorldToScreen(localPlayerController, upperR, false, &upperRP) &&
+                    UGameplayStatics::ProjectWorldToScreen(localPlayerController, lowerL, false, &lowerLP) &&
+                    UGameplayStatics::ProjectWorldToScreen(localPlayerController, lowerR, false, &lowerRP) &&
+                    UGameplayStatics::ProjectWorldToScreen(localPlayerController, handL, false, &handLP) &&
+                    UGameplayStatics::ProjectWorldToScreen(localPlayerController, handR, false, &handRP) &&
+                    UGameplayStatics::ProjectWorldToScreen(localPlayerController, calfL, false, &calfLP) &&
+                    UGameplayStatics::ProjectWorldToScreen(localPlayerController, calfR, false, &calfRP) &&
+                    UGameplayStatics::ProjectWorldToScreen(localPlayerController, footL, false, &footLP) &&
+                    UGameplayStatics::ProjectWorldToScreen(localPlayerController, footR, false, &footRP))
+                {
+                    Canvas->K2_DrawLine({handRP.X, handRP.Y}, {lowerRP.X, lowerRP.Y}, 1.0f, color);
+                    Canvas->K2_DrawLine({lowerRP.X, lowerRP.Y}, {upperRP.X, upperRP.Y}, 1.0f, color);
+                    Canvas->K2_DrawLine({upperRP.X, upperRP.Y}, {neckP.X, neckP.Y}, 1.0f, color);
+                    Canvas->K2_DrawLine({neckP.X, neckP.Y}, {upperLP.X, upperLP.Y}, 1.0f, color);
+                    Canvas->K2_DrawLine({upperLP.X, upperLP.Y}, {lowerLP.X, lowerLP.Y}, 1.0f, color);
+                    Canvas->K2_DrawLine({lowerLP.X, lowerLP.Y}, {handLP.X, handLP.Y}, 1.0f, color);
+                    Canvas->K2_DrawLine({footRP.X, footRP.Y}, {calfRP.X, calfRP.Y}, 1.0f, color);
+                    Canvas->K2_DrawLine({calfRP.X, calfRP.Y}, {PelvisP.X, PelvisP.Y}, 1.0f, color);
+                    Canvas->K2_DrawLine({PelvisP.X, PelvisP.Y}, {calfLP.X, calfLP.Y}, 1.0f, color);
+                    Canvas->K2_DrawLine({calfLP.X, calfLP.Y}, {footLP.X, footLP.Y}, 1.0f, color);
+                    Canvas->K2_DrawLine({PelvisP.X, PelvisP.Y}, {neckP.X, neckP.Y}, 1.0f, color);
+                }
+            }
+        
+    }
+
+    if (Font)
+    {
+    // NEW Y POSITION (upar shift for clean gap)
+    float boxX = (float)g_screenWidth / 2.f - 15.f;
+    float boxY = 60.f; // <-- yaha change kiya (pehle 85 tha)
+
+    int totalCount = totalEnemies + totalBots;
+    std::string countStr = (totalCount == 0) ? "0" : std::to_string(totalCount);
+
+    FLinearColor boxColor = FLinearColor(1.f, 1.f, 1.f, 1.f); // White
+    FLinearColor textColor = (totalCount == 0)
+        ? FLinearColor(1.f, 0.f, 0.f, 1.f) // Red
+        : FLinearColor(0.f, 0.f, 0.f, 1.f); // Black
+    FLinearColor shadowColor = FLinearColor(1.f, 1.f, 1.f, 1.f); // White
+
+    DrawFilledRectangle(Canvas, FVector2D(boxX, boxY), 30.f, 34.f, boxColor);
+
+    if (Canvas && Font) {
+        Canvas->K2_DrawText(Font,
+                            FString(countStr.c_str()),
+                            FVector2D((float)g_screenWidth / 2.f, boxY + 5.f),
+                            textColor,
+                            1.f,
+                            {},
+                            {},
+                            true,
+                            true,
+                            true,
+                            shadowColor);
+    }
+}
+}
+    /*
 void DrawPlayerESP(UCanvas* Canvas)
 {
     if (!Canvas || !localPlayer || !localPlayerController)
@@ -307,52 +478,9 @@ void DrawPlayerESP(UCanvas* Canvas)
              DrawLine(Canvas, {g_screenWidth / 2.f, 0.f}, {Head2D.X, Head2D.Y}, 1.5f, color);
             }
 
- if (isHpBarEsp) {
-float CurHP = Player->Health;
+ 
 
-if (CurHP < 0.0f)
-CurHP = 0.0f;
-else if (CurHP > Player->HealthMax)
-CurHP = Player->HealthMax;
-
-float MaxHP = Player->HealthMax > 0 ? Player->HealthMax : 1.0f;
-float HealthPercentage = CurHP / MaxHP;
-
-FLinearColor ColorHP;
-if (Player->bEnsure) {
-ColorHP = FLinearColor(0.0f, 1.0f, 0.0f, 1.0f);
-} else {
-if (HealthPercentage > 0.5f) {
-ColorHP = FLinearColor(0.0f, 1.0f, 0.0f, 1.0f);
-} else if (HealthPercentage > 0.2f) {
-ColorHP = FLinearColor(1.0f, 1.0f, 0.0f, 1.0f);
-} else {
-ColorHP = FLinearColor(1.0f, 0.0f, 0.0f, 1.0f);
-}
-}
-
-FVector AboveHead = Player->GetHeadLocation(true);
-AboveHead.Z += 25.0f;
-
-FVector2D AboveHeadSc;
-if (UGameplayStatics::ProjectWorldToScreen(localPlayerController, AboveHead, false, &AboveHeadSc)) {
-float BarWidth = 50.0f;
-float BarHeight = 4.0f;
-
- FVector2D BarPos;
-BarPos.X = AboveHeadSc.X - BarWidth / 2.0f;
-BarPos.Y = AboveHeadSc.Y - BarHeight * 1.5f;
-
-FLinearColor BorderColor = Player->bEnsure
-    ? FLinearColor(1.0f, 0.0f, 0.0f, 1.0f)
-    : FLinearColor(0.0f, 1.0f, 0.0f, 1.0f);
-
-DrawFilledRect(Canvas, {BarPos.X - 1.0f, BarPos.Y - 1.0f}, BarWidth + 2.0f, BarHeight + 2.0f, BorderColor); // bg
-DrawFilledRect(Canvas, {BarPos.X, BarPos.Y}, HealthPercentage * BarWidth, BarHeight, ColorHP); // fill
-}
-}
-
-        /*    if (isHpBarEsp)
+           if (isHpBarEsp)
             {
                 float maxHealth = (float)Player->HealthMax;
                 float curHealth = (float)Player->Health;
@@ -366,7 +494,7 @@ DrawFilledRect(Canvas, {BarPos.X, BarPos.Y}, HealthPercentage * BarWidth, BarHei
                     DrawFilledRectangle(Canvas, HealthPos, 30.0f, 4.0f, FLinearColor(0, 0, 0, 1));
                     DrawFilledRectangle(Canvas, HealthPos, (CurHP * 30.0f) / maxHealth, 4.0f, ColorHP);
                 }
-            }*/
+            }
             
 
             if (IsBone)
@@ -446,7 +574,8 @@ DrawFilledRect(Canvas, {BarPos.X, BarPos.Y}, HealthPercentage * BarWidth, BarHei
     }
 }
 }
-
+*/
+        
 void DrawMSG(UCanvas* Canvas) {
     if (!Canvas || !Font) return;
        
