@@ -147,6 +147,8 @@ namespace off {
     constexpr uintptr_t BDEAD   = 0xe8c; // STExtraCharacter::bDead (bool)
     constexpr uintptr_t BENSURE = 0xa69; // UAECharacter::bEnsure (bool)
     constexpr uintptr_t CHAR_TEAMID = 0x9a8; // UAECharacter::TeamID (int)
+     // ============ SCENE COMPONENT ============
+    constexpr uintptr_t SCENE_RELATIVELOCATION = 0x1e4; // USceneComponent::RelativeLocation (FVector)
 }
     
 static uintptr_t image_slide_by_name(const char* name) {
@@ -245,10 +247,7 @@ void DrawFilledRect(UCanvas* Canvas, FVector2D initial_pos, float w, float h, FL
 }
 
 
-bool IsOnScreen(FVector2D pos, float margin = 50.f) {
-    return pos.X > -margin && pos.X < g_screenWidth + margin &&
-           pos.Y > -margin && pos.Y < g_screenHeight + margin;
-}
+
 void *LoadFont() {
     while (!Font) {
         Font = UObject::FindObject<UFont>(std::string("Font RobotoTiny.RobotoTiny"));
@@ -260,70 +259,60 @@ void *LoadFont() {
 // ========== ESP RENDER ====================
 // ==========================================
 void DrawPlayerESP(UCanvas* Canvas) {
-    if (!Canvas || !localPlayer || !localPlayerController)
-        return;
+    if (!Canvas || !localPlayer || !localPlayerController) return;
 
     auto GWorld = GetFullWorld();
-    if (!IsValidPtr((uintptr_t)GWorld))
-        return;
+    if (!IsValidPtr((uintptr_t)GWorld)) return;
 
-    int totalEnemies = 0;
-    int totalBots = 0;
+    int totalEnemies = 0, totalBots = 0;
 
-    // local player ke values ek baar nikaal lo (loop me repeat nahi)
-    uint32_t lKey  = safe_read<uint32_t>((uintptr_t)localPlayer + off::CHAR_PLAYERKEY); // 0x990
-    uint32_t lTeam = safe_read<uint32_t>((uintptr_t)localPlayer + off::CHAR_TEAMID);    // 0x9a8
+    uint32_t lKey  = safe_read<uint32_t>((uintptr_t)localPlayer + off::CHAR_PLAYERKEY);
+    uint32_t lTeam = safe_read<uint32_t>((uintptr_t)localPlayer + off::CHAR_TEAMID);
+
+    // local player root ek baar
+    auto myRoot = safe_read<USceneComponent*>((uintptr_t)localPlayer + off::PC_ROOTCOMPONENT);
+    if (!myRoot) return;
+    FVector myLoc = safe_read<FVector>((uintptr_t)myRoot + off::SCENE_RELATIVELOCATION);
 
     auto Actors = GetActors();
     for (auto& Actor : Actors) {
-        if (!Actor || !IsValidPtr((uintptr_t)Actor))
-            continue;
-
-        if (!Actor->IsA(ASTExtraPlayerCharacter::StaticClass()))
-            continue;
+        if (!Actor || !IsValidPtr((uintptr_t)Actor)) continue;
+        if (!Actor->IsA(ASTExtraPlayerCharacter::StaticClass())) continue;
 
         auto Player = reinterpret_cast<ASTExtraPlayerCharacter*>(Actor);
+        auto hisRoot = safe_read<USceneComponent*>((uintptr_t)Player + off::PC_ROOTCOMPONENT);
+        if (!hisRoot) continue;
 
-        // RootComponent check (0x208)
-        if (!safe_read<USceneComponent*>((uintptr_t)Player + off::PC_ROOTCOMPONENT))
-            continue;
+        uint32_t pKey  = safe_read<uint32_t>((uintptr_t)Player + off::CHAR_PLAYERKEY);
+        uint32_t pTeam = safe_read<uint32_t>((uintptr_t)Player + off::CHAR_TEAMID);
+        bool dead   = safe_read<bool>((uintptr_t)Player + off::BDEAD);
+        bool hidden = safe_read<bool>((uintptr_t)Player + off::BHIDDEN);
 
-        // ---- offset-base filter ----
-        uint32_t pKey  = safe_read<uint32_t>((uintptr_t)Player + off::CHAR_PLAYERKEY); // 0x990
-        uint32_t pTeam = safe_read<uint32_t>((uintptr_t)Player + off::CHAR_TEAMID);    // 0x9a8
-        bool dead   = safe_read<bool>((uintptr_t)Player + off::BDEAD);    // 0xe8c
-        bool hidden = safe_read<bool>((uintptr_t)Player + off::BHIDDEN);  // 0xe8
+        if (pKey == lKey || pTeam == lTeam || dead || hidden) continue;
 
-        // skip: khud, teammate, dead, hidden
-        if (pKey == lKey) continue;
-        if (pTeam == lTeam) continue;
-        if (dead || hidden) continue;
-
-        // bot vs enemy count
-        if (safe_read<bool>((uintptr_t)Player + off::BENSURE)) totalBots++; // 0xa69
+        if (safe_read<bool>((uintptr_t)Player + off::BENSURE)) totalBots++;
         else totalEnemies++;
 
-        // ---- distance (SDK function) ----
-        float Distance = localPlayer->GetDistanceTo(Player) / 100.f;
-        if (Distance > 500.f)
-            continue;
+        // ---- distance offset-base ----
+        FVector hisLoc = safe_read<FVector>((uintptr_t)hisRoot + off::SCENE_RELATIVELOCATION);
+        float dx = hisLoc.X - myLoc.X;
+        float dy = hisLoc.Y - myLoc.Y;
+        float dz = hisLoc.Z - myLoc.Z;
+        float Distance = sqrtf(dx*dx + dy*dy + dz*dz) / 100.f;
+        if (Distance > 500.f) continue;
 
-        // ---- bone positions (SDK function) ----
+        // ---- box draw (SDK functions, waise hi) ----
         FVector HeadPos = Player->GetBonePos("Head", {0, 0, 0});
         FVector RootPos = Player->GetBonePos("Root", {0, 0, 0});
         FVector2D Head2D, Root2D;
-
         if (!UGameplayStatics::ProjectWorldToScreen(localPlayerController, HeadPos, true, &Head2D) ||
             !UGameplayStatics::ProjectWorldToScreen(localPlayerController, RootPos, true, &Root2D))
             continue;
 
-        // ---- visibility (SDK function) ----
         bool IsVisible = localPlayerController->LineOfSightTo(Player, {0, 0, 0}, true);
-        FLinearColor color = IsVisible
-            ? FLinearColor(0.f, 1.f, 0.f, 1.f)   // visible — green
-            : FLinearColor(1.f, 0.f, 0.f, 1.f);  // hidden — red
+        FLinearColor color = IsVisible ? FLinearColor(0,1,0,1) : FLinearColor(1,0,0,1);
 
-     
+        
             if (isLineEsp)
             {
              DrawLine(Canvas, {g_screenWidth / 2.f, 0.f}, {Head2D.X, Head2D.Y}, 1.5f, color);
