@@ -121,7 +121,7 @@ TNameEntryArray *GetGNames() {
 
 
 namespace off {
-    // ============ WORLD (offset-base) ============
+    // ============ WORLD ============
     constexpr uintptr_t FUN            = 0x1019A422C;
     constexpr uintptr_t DATA           = 0x10A029E80;
     constexpr uintptr_t ACTORARRAY_FUN = 0x105C96B1C;
@@ -132,23 +132,27 @@ namespace off {
     constexpr uintptr_t NETDRIVER_SERVERCONN   = 0x78;
     constexpr uintptr_t SERVERCONN_PLAYERCTRL  = 0x30;
 
-    // ============ PLAYER CHARACTER ============
+    // ============ CHARACTER ============
     constexpr uintptr_t PC_ROOTCOMPONENT = 0x208;
+    constexpr uintptr_t CHAR_PLAYERKEY   = 0x990;
+    constexpr uintptr_t CTRL_PLAYERKEY   = 0x920;
+    constexpr uintptr_t CHAR_TEAMID      = 0x9a8;
+    constexpr uintptr_t BDEAD            = 0xe8c;
+    constexpr uintptr_t BHIDDEN          = 0xe8;
+    constexpr uintptr_t BENSURE          = 0xa69;
 
-    // ============ PLAYER KEY ============
-    constexpr uintptr_t CHAR_PLAYERKEY = 0x990; // UAECharacter
-    constexpr uintptr_t CTRL_PLAYERKEY = 0x920; // UAEPlayerController
+    // ============ HEALTH ============
+    constexpr uintptr_t HEALTH          = 0xe70;  // STExtraCharacter::Health (float)
+    constexpr uintptr_t HEALTHMAX       = 0xe74;  // STExtraCharacter::HealthMax (float)
+    constexpr uintptr_t NEARDEATHBREATH = 0x1cb0; // STExtraBaseCharacter::NearDeathBreath (float)
+
+    // ============ SCENE ============
+    constexpr uintptr_t SCENE_RELATIVELOCATION = 0x1e4;
+    constexpr uintptr_t SCENE_WORLDLOCATION    = 0x218;
 
     // ============ CANVAS ============
     constexpr uintptr_t CANVAS_SIZEX = 0x40;
     constexpr uintptr_t CANVAS_SIZEY = 0x44;
-    // ============ CHARACTER FLAGS ============
-    constexpr uintptr_t BHIDDEN = 0xe8;  // AActor::bHidden (bool)
-    constexpr uintptr_t BDEAD   = 0xe8c; // STExtraCharacter::bDead (bool)
-    constexpr uintptr_t BENSURE = 0xa69; // UAECharacter::bEnsure (bool)
-    constexpr uintptr_t CHAR_TEAMID = 0x9a8; // UAECharacter::TeamID (int)
-     // ============ SCENE COMPONENT ============
-    constexpr uintptr_t SCENE_RELATIVELOCATION = 0x1e4; // USceneComponent::RelativeLocation (FVector)
 }
     
 static uintptr_t image_slide_by_name(const char* name) {
@@ -208,14 +212,10 @@ void DrawLine(UCanvas* Canvas, FVector2D posFrom, FVector2D posTo, float Thickne
     Canvas->K2_DrawLine({posFrom.X, posFrom.Y}, {posTo.X, posTo.Y}, Thickness, Color);
 }
 
-void DrawFilledRectangle(UCanvas* Canvas, FVector2D Min, float Width, float Height, FLinearColor Color) {
+void DrawFilledRectangle(UCanvas* Canvas, float X, float Y, float Width, float Height, FLinearColor Color) {
     for (float i = 0.f; i < Height; i += 1.f) {
-        // Purana: Min + FVector2D(0.f, i)
-        FVector2D StartPos = { Min.X + 0.f, Min.Y + i };
-        
-        // Purana: Min + FVector2D(Width, i)
-        FVector2D EndPos = { Min.X + Width, Min.Y + i };
-        
+        FVector2D StartPos = { X, Y + i };
+        FVector2D EndPos   = { X + Width, Y + i };
         Canvas->K2_DrawLine(StartPos, EndPos, 1.f, Color);
     }
 }
@@ -258,7 +258,7 @@ void *LoadFont() {
 // ==========================================
 // ========== ESP RENDER ====================
 // ==========================================
-void DrawPlayerESP(UCanvas* Canvas) {
+/*void DrawPlayerESP(UCanvas* Canvas) {
     if (!Canvas || !localPlayer || !localPlayerController) return;
 
     auto GWorld = GetFullWorld();
@@ -414,157 +414,163 @@ void DrawPlayerESP(UCanvas* Canvas) {
     }
 }
 }
-    /*
-void DrawPlayerESP(UCanvas* Canvas)
+*/
+
+// lang: C++, file: worldtoscreen.cpp, target: iOS arm64
+// ViewMatrix = UCanvas + off::CANVAS_VIEWMATRIX (iOS offset confirm karo)
+
+struct Matrix
 {
-    if (!Canvas || !localPlayer || !localPlayerController)
-        return;
+    float m[4][4];
+};
 
-    auto GWorld = GetFullWorld();
-    if (!IsValidPtr(reinterpret_cast<uintptr_t>(GWorld)))
-        return;
+Matrix GetMatrix() {
+    static UCanvas* Canvas = nullptr;
+    if (!Canvas) Canvas = UObject::FindObject<UCanvas>("Canvas Transient.DebugCanvasObject");
+    if (!Canvas) return Matrix{};
+    return safe_read<Matrix>((uintptr_t)Canvas + 0x270);
+}
 
-    int totalEnemies = 0;
-    int totalBots = 0;
+bool WorldToScreenPlayer(FVector pos, FVector& screen, int* distance) {
+    Matrix ViewMatrix = GetMatrix();
+    screen = {};
+    *distance = 0;
+
+    float screenW = (ViewMatrix.m[0][3] * pos.X) + (ViewMatrix.m[1][3] * pos.Y)
+                  + (ViewMatrix.m[2][3] * pos.Z + ViewMatrix.m[3][3]);
+    if (screenW < 0.0001f) return false;
+
+    *distance = (int)(screenW / 100);
+
+    float screenY = (ViewMatrix.m[0][1] * pos.X) + (ViewMatrix.m[1][1] * pos.Y)
+                  + (ViewMatrix.m[2][1] * (pos.Z + 85) + ViewMatrix.m[3][1]);
+    float screenX = (ViewMatrix.m[0][0] * pos.X) + (ViewMatrix.m[1][0] * pos.Y)
+                  + (ViewMatrix.m[2][0] * pos.Z + ViewMatrix.m[3][0]);
+
+    float W = (float)g_screenWidth;
+    float H = (float)g_screenHeight;
+
+    screen.Y = (H / 2.f) - (H / 2.f) * screenY / screenW;
+    screen.X = (W / 2.f) + (W / 2.f) * screenX / screenW;
+
+    float y1 = (H / 2.f) - (ViewMatrix.m[0][1] * pos.X + ViewMatrix.m[1][1] * pos.Y
+               + ViewMatrix.m[2][1] * (pos.Z - 95) + ViewMatrix.m[3][1]) * (H / 2.f) / screenW;
+    screen.Z = y1 - screen.Y;
+
+    return !(screen.X == 0 && screen.Y == 0 && screen.Z == 0);
+}
+
+bool WorldToScreenBone(FVector Position, FVector2D* Screen) {
+    Matrix ViewMatrix = GetMatrix();
+
+    float ScreenW = (ViewMatrix.m[0][3] * Position.X) + (ViewMatrix.m[1][3] * Position.Y)
+                  + (ViewMatrix.m[2][3] * Position.Z + ViewMatrix.m[3][3]);
+    if (ScreenW < 0.0001f) return false;
+
+    ScreenW = 1.f / ScreenW;
+    float SightX = ((float)g_screenWidth  / 2.f);
+    float SightY = ((float)g_screenHeight / 2.f);
+
+    Screen->X = SightX + (ViewMatrix.m[0][0] * Position.X + ViewMatrix.m[1][0] * Position.Y
+               + ViewMatrix.m[2][0] * Position.Z + ViewMatrix.m[3][0]) * ScreenW * SightX;
+    Screen->Y = SightY - (ViewMatrix.m[0][1] * Position.X + ViewMatrix.m[1][1] * Position.Y
+               + ViewMatrix.m[2][1] * Position.Z + ViewMatrix.m[3][1]) * ScreenW * SightY;
+
+    return true;
+}
+
+
+void DrawPlayerESP(UCanvas* Canvas) {
+    if (!Canvas || !localPlayer || !localPlayerController) return;
+
+    int totalEnemies = 0, totalBots = 0;
+
+    uint32_t lKey  = safe_read<uint32_t>((uintptr_t)localPlayer + off::CHAR_PLAYERKEY);
+    uint32_t lTeam = safe_read<uint32_t>((uintptr_t)localPlayer + off::CHAR_TEAMID);
+
+    auto myRoot = safe_read<USceneComponent*>((uintptr_t)localPlayer + off::PC_ROOTCOMPONENT);
+    if (!myRoot) return;
+    FVector myLoc = safe_read<FVector>((uintptr_t)myRoot + off::SCENE_RELATIVELOCATION);
 
     auto Actors = GetActors();
-    for (auto &Actor : Actors)
-    {
-        if (!Actor || !IsValidPtr(reinterpret_cast<uintptr_t>(Actor)))
-            continue;
+    for (auto& Actor : Actors) {
+        if (!Actor || !IsValidPtr((uintptr_t)Actor)) continue;
+        if (!Actor->IsA(ASTExtraPlayerCharacter::StaticClass())) continue;
 
-        if (Actor->IsA(ASTExtraPlayerCharacter::StaticClass()))
-        {
-            auto Player = (ASTExtraPlayerCharacter *)Actor;
-            if (!IsValidPtr(reinterpret_cast<uintptr_t>(Player->RootComponent)))
-                continue;
+        auto Player = reinterpret_cast<ASTExtraPlayerCharacter*>(Actor);
+        auto hisRoot = safe_read<USceneComponent*>((uintptr_t)Player + off::PC_ROOTCOMPONENT);
+        if (!hisRoot) continue;
 
-            if (Player->PlayerKey == localPlayerController->PlayerKey ||
-                Player->TeamID == localPlayerController->TeamID ||
-                Player->bDead || Player->bHidden)
-                continue;
+        uint32_t pKey  = safe_read<uint32_t>((uintptr_t)Player + off::CHAR_PLAYERKEY);
+        uint32_t pTeam = safe_read<uint32_t>((uintptr_t)Player + off::CHAR_TEAMID);
+        bool dead   = safe_read<bool>((uintptr_t)Player + off::BDEAD);
+        bool hidden = safe_read<bool>((uintptr_t)Player + off::BHIDDEN);
+        bool isBot  = safe_read<bool>((uintptr_t)Player + off::BENSURE);
 
-            float Distance = localPlayer->GetDistanceTo(Player) / 100.f;
-            if (Distance > 500.f)
-                continue;
+        if (pKey == lKey || pTeam == lTeam || dead || hidden) continue;
 
-            if (Player->bEnsure) totalBots++;
-            else totalEnemies++;
+        FVector hisLoc = safe_read<FVector>((uintptr_t)hisRoot + off::SCENE_RELATIVELOCATION);
+        float dx = hisLoc.X - myLoc.X, dy = hisLoc.Y - myLoc.Y, dz = hisLoc.Z - myLoc.Z;
+        float Distance = sqrtf(dx*dx + dy*dy + dz*dz) / 100.f;
+        if (Distance > 500.f) continue;
 
-            FVector HeadPos = Player->GetBonePos("Head", {0, 0, 0});
-            FVector RootPos = Player->GetBonePos("Root", {0, 0, 0});
-            FVector2D Head2D, Root2D;
+        if (isBot) totalBots++; else totalEnemies++;
 
-            if (!UGameplayStatics::ProjectWorldToScreen(localPlayerController, HeadPos, true, &Head2D) ||
-                !UGameplayStatics::ProjectWorldToScreen(localPlayerController, RootPos, true, &Root2D))
-                continue;
+        FVector HeadBone = Player->GetBonePos("Head", {});
+        bool IsVisible = localPlayerController->LineOfSightTo(
+         localPlayerController->PlayerCameraManager, HeadBone, true);
 
-            bool IsVisible = localPlayerController->LineOfSightTo(Player, {0, 0, 0}, true);
-            FLinearColor color = IsVisible ? FLinearColor(0.f, 1.f, 0.f, 1.f) : FLinearColor(1.f, 0.f, 0.f, 1.f);
+        FLinearColor Color;
+        if (isBot && IsVisible)        Color = FLinearColor(0,1,0,1);
+        else if (!isBot && IsVisible)  Color = FLinearColor(0,1,0,1);
+        else if (!isBot && !IsVisible) Color = FLinearColor(1,0,0,1);
+        else                           Color = FLinearColor(1,1,1,1);
 
-            if (isLineEsp)
-            {
-             DrawLine(Canvas, {g_screenWidth / 2.f, 0.f}, {Head2D.X, Head2D.Y}, 1.5f, color);
-            }
+auto rootc = safe_read<USceneComponent*>((uintptr_t)Player + off::PC_ROOTCOMPONENT);
+if (!rootc) continue;
 
- 
+FVector PlayerPos = rootc->K2_GetComponentLocation();  // SDK, confirmed
+        FVector Screen;
+        int distanceX;
+        if (!WorldToScreenPlayer(PlayerPos, Screen, &distanceX)) continue;
 
-           if (isHpBarEsp)
-            {
-                float maxHealth = (float)Player->HealthMax;
-                float curHealth = (float)Player->Health;
-                if (maxHealth > 0.0f)
-                {
-                    float CurHP = std::max(0.f, std::min(curHealth, maxHealth));
-                    FLinearColor ColorHP = (CurHP / maxHealth > 0.5f) ? FLinearColor(0, 1, 0, 1) : ((CurHP / maxHealth > 0.2f) ? FLinearColor(1, 1, 0, 1) : FLinearColor(1, 0, 0, 1));
-                    FVector2D HealthPos = Head2D;
-                    HealthPos.X -= 15.0f;
-                    HealthPos.Y -= 12.0f;
-                    DrawFilledRectangle(Canvas, HealthPos, 30.0f, 4.0f, FLinearColor(0, 0, 0, 1));
-                    DrawFilledRectangle(Canvas, HealthPos, (CurHP * 30.0f) / maxHealth, 4.0f, ColorHP);
-                }
-            }
-            
+        FVector HeadPos = Player->GetBonePos("Head", {});
+        FVector RootPos = Player->GetBonePos("Root", {});
+        FVector2D HeadPosition, RootPosition; 
+        if (!WorldToScreenBone(HeadPos, &HeadPosition) ||
+            !WorldToScreenBone(RootPos, &RootPosition)) continue;
 
-            if (IsBone)
-            {
-                FVector Pelvis = Player->GetBonePos("pelvis", {});
-                FVector neck = Player->GetBonePos("neck_01", {});
-                FVector upperL = Player->GetBonePos("upperarm_l", {});
-                FVector upperR = Player->GetBonePos("upperarm_r", {});
-                FVector lowerL = Player->GetBonePos("lowerarm_l", {});
-                FVector lowerR = Player->GetBonePos("lowerarm_r", {});
-                FVector handL = Player->GetBonePos("hand_l", {});
-                FVector handR = Player->GetBonePos("hand_r", {});
-                FVector calfL = Player->GetBonePos("calf_l", {});
-                FVector calfR = Player->GetBonePos("calf_r", {});
-                FVector footL = Player->GetBonePos("foot_l", {});
-                FVector footR = Player->GetBonePos("foot_r", {});
+        if (Cheat::Esp::Line) {
+            DrawLine(Canvas, {(float)g_screenWidth / 2, 0}, {HeadPosition.X, HeadPosition.Y}, Color, 2.0f);
+        }
 
-                FVector2D PelvisP, neckP, upperLP, upperRP, lowerLP, lowerRP, handLP, handRP, calfLP, calfRP, footLP, footRP;
-                if (UGameplayStatics::ProjectWorldToScreen(localPlayerController, Pelvis, false, &PelvisP) &&
-                    UGameplayStatics::ProjectWorldToScreen(localPlayerController, neck, false, &neckP) &&
-                    UGameplayStatics::ProjectWorldToScreen(localPlayerController, upperL, false, &upperLP) &&
-                    UGameplayStatics::ProjectWorldToScreen(localPlayerController, upperR, false, &upperRP) &&
-                    UGameplayStatics::ProjectWorldToScreen(localPlayerController, lowerL, false, &lowerLP) &&
-                    UGameplayStatics::ProjectWorldToScreen(localPlayerController, lowerR, false, &lowerRP) &&
-                    UGameplayStatics::ProjectWorldToScreen(localPlayerController, handL, false, &handLP) &&
-                    UGameplayStatics::ProjectWorldToScreen(localPlayerController, handR, false, &handRP) &&
-                    UGameplayStatics::ProjectWorldToScreen(localPlayerController, calfL, false, &calfLP) &&
-                    UGameplayStatics::ProjectWorldToScreen(localPlayerController, calfR, false, &calfRP) &&
-                    UGameplayStatics::ProjectWorldToScreen(localPlayerController, footL, false, &footLP) &&
-                    UGameplayStatics::ProjectWorldToScreen(localPlayerController, footR, false, &footRP))
-                {
-                    Canvas->K2_DrawLine({handRP.X, handRP.Y}, {lowerRP.X, lowerRP.Y}, 1.0f, color);
-                    Canvas->K2_DrawLine({lowerRP.X, lowerRP.Y}, {upperRP.X, upperRP.Y}, 1.0f, color);
-                    Canvas->K2_DrawLine({upperRP.X, upperRP.Y}, {neckP.X, neckP.Y}, 1.0f, color);
-                    Canvas->K2_DrawLine({neckP.X, neckP.Y}, {upperLP.X, upperLP.Y}, 1.0f, color);
-                    Canvas->K2_DrawLine({upperLP.X, upperLP.Y}, {lowerLP.X, lowerLP.Y}, 1.0f, color);
-                    Canvas->K2_DrawLine({lowerLP.X, lowerLP.Y}, {handLP.X, handLP.Y}, 1.0f, color);
-                    Canvas->K2_DrawLine({footRP.X, footRP.Y}, {calfRP.X, calfRP.Y}, 1.0f, color);
-                    Canvas->K2_DrawLine({calfRP.X, calfRP.Y}, {PelvisP.X, PelvisP.Y}, 1.0f, color);
-                    Canvas->K2_DrawLine({PelvisP.X, PelvisP.Y}, {calfLP.X, calfLP.Y}, 1.0f, color);
-                    Canvas->K2_DrawLine({calfLP.X, calfLP.Y}, {footLP.X, footLP.Y}, 1.0f, color);
-                    Canvas->K2_DrawLine({PelvisP.X, PelvisP.Y}, {neckP.X, neckP.Y}, 1.0f, color);
-                }
+        if (Cheat::Esp::Health) {
+            float MaxHP       = safe_read<float>((uintptr_t)Player + off::HEALTHMAX);
+            float health      = safe_read<float>((uintptr_t)Player + off::HEALTH);
+            float KnockHealth = safe_read<float>((uintptr_t)Player + off::NEARDEATHBREATH);
+
+            float X = Screen.X - (Screen.Z / 4) - 4;
+            float Y = (Screen.Y - 5) + (Screen.Z + 5);
+            float W = 3;
+            float H = Screen.Z + 5;
+
+            DrawFilledRectangle(Canvas, X, Y, W, H, FLinearColor(0,0,0,1));
+
+            if (MaxHP > 0.f) {
+                float ratio = health / MaxHP;
+                FLinearColor hc;
+                if (health > 70.f)       hc = FLinearColor(0,1,0,1);
+                else if (health > 30.f)  hc = FLinearColor(1,1,0,1);
+                else if (health > 0.f)   hc = FLinearColor(1,0,0,1);
+                else                     hc = FLinearColor(1,0,0,1);
+
+                float fillH = (health > 0.f) ? H * ratio : H * (KnockHealth / MaxHP);
+                DrawFilledRectangle(Canvas, X, Y, W, fillH, hc);
             }
         }
     }
-
-    if (Font)
-    {
-    // NEW Y POSITION (upar shift for clean gap)
-    float boxX = (float)g_screenWidth / 2.f - 15.f;
-    float boxY = 60.f; // <-- yaha change kiya (pehle 85 tha)
-
-    int totalCount = totalEnemies + totalBots;
-    std::string countStr = (totalCount == 0) ? "0" : std::to_string(totalCount);
-
-    FLinearColor boxColor = FLinearColor(1.f, 1.f, 1.f, 1.f); // White
-    FLinearColor textColor = (totalCount == 0)
-        ? FLinearColor(1.f, 0.f, 0.f, 1.f) // Red
-        : FLinearColor(0.f, 0.f, 0.f, 1.f); // Black
-    FLinearColor shadowColor = FLinearColor(1.f, 1.f, 1.f, 1.f); // White
-
-    DrawFilledRectangle(Canvas, FVector2D(boxX, boxY), 30.f, 34.f, boxColor);
-
-    if (Canvas && Font) {
-        Canvas->K2_DrawText(Font,
-                            FString(countStr.c_str()),
-                            FVector2D((float)g_screenWidth / 2.f, boxY + 5.f),
-                            textColor,
-                            1.f,
-                            {},
-                            {},
-                            true,
-                            true,
-                            true,
-                            shadowColor);
-    }
 }
-}
-*/
-        
+
 void DrawMSG(UCanvas* Canvas) {
     if (!Canvas || !Font) return;
        
