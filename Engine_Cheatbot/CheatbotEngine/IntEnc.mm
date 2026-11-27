@@ -252,10 +252,30 @@ void DrawFilledRect(UCanvas* Canvas, FVector2D initial_pos, float w, float h, FL
 
 
 
-void *LoadFont() {
+void* LoadFont() {
     while (!Font) {
-        Font = UObject::FindObject<UFont>(std::string("Font RobotoTiny.RobotoTiny"));
-        sleep(1);
+        uintptr_t GObjects = CB_GetGObjects();
+        if (GObjects) {
+            uintptr_t ObjObjects = safe_read<uintptr_t>(GObjects + CB_OBJOBJECTS_OFFSET);
+            if (ObjObjects) {
+                int32_t NumElements = safe_read<int32_t>(ObjObjects + CB_NUMELEMENTS_OFFSET);
+                if (NumElements > 0) {
+                    uintptr_t* Objects = reinterpret_cast<uintptr_t*>(ObjObjects);
+                    for (int i = 0; i < NumElements; i++) {
+                        uintptr_t obj = safe_read<uintptr_t>((uintptr_t)&Objects[i]);
+                        if (!obj) continue;
+
+                        std::string name = CB_GetObjectName(obj);
+                        // Exact string match (jaise SDK FindObject karta tha)
+                        if (name == "RobotoTiny") {
+                            Font = reinterpret_cast<UFont*>(obj);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        if (!Font) sleep(1);
     }
     return 0;
 }
@@ -267,11 +287,45 @@ struct Matrix
     float m[4][4];
 };
 
+/*
 Matrix GetMatrix() {
     static UCanvas* Canvas = nullptr;
     if (!Canvas) Canvas = UObject::FindObject<UCanvas>("Canvas Transient.DebugCanvasObject");
     if (!Canvas) return Matrix{};
     return safe_read<Matrix>((uintptr_t)Canvas + 0x270);
+}*/
+
+Matrix GetMatrix() {
+    static UCanvas* Canvas = nullptr;
+    
+    if (!Canvas) {
+        uintptr_t GObjects = CB_GetGObjects();
+        if (GObjects) {
+            uintptr_t ObjObjects = safe_read<uintptr_t>(GObjects + CB_OBJOBJECTS_OFFSET);
+            if (ObjObjects) {
+                int32_t NumElements = safe_read<int32_t>(ObjObjects + CB_NUMELEMENTS_OFFSET);
+                if (NumElements > 0) {
+                    uintptr_t* Objects = reinterpret_cast<uintptr_t*>(ObjObjects);
+                    for (int i = 0; i < NumElements; i++) {
+                        uintptr_t obj = safe_read<uintptr_t>((uintptr_t)&Objects[i]);
+                        if (!obj) continue;
+
+                        std::string name = CB_GetObjectName(obj);
+                        
+                        // "Canvas Transient.DebugCanvasObject" ka short name "DebugCanvasObject" hoga
+                        if (name.find("DebugCanvasObject") != std::string::npos || name.find("Canvas") != std::string::npos) {
+                            // Confirm karne ke liye ki ye Canvas hi hai
+                            Canvas = reinterpret_cast<UCanvas*>(obj);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    if (!Canvas) return Matrix{};
+    return safe_read<Matrix>((uintptr_t)Canvas + 0x270); // 0x270 = arm64 Canvas Matrix offset
 }
 
 bool WorldToScreenPlayer(FVector pos, FVector& screen, int* distance) {
@@ -634,12 +688,12 @@ void DrawPlayerESP(UCanvas* Canvas) {
             !WorldToScreenBone(RootPos, &RootPosition)) continue;
 
         // Draw Line
-        if (Cheat::Esp::Line) {
+        if (isLineEsp) {
             DrawLine(Canvas, {(float)g_screenWidth / 2, 0}, {HeadPosition.X, HeadPosition.Y}, 2.0f, Color);
         }
 
         // Draw Health Bar
-        if (Cheat::Esp::Health) {
+        if (isLineEsp) {
             float MaxHP       = safe_read<float>((uintptr_t)Player + off::HEALTHMAX);
             float health      = safe_read<float>((uintptr_t)Player + off::HEALTH);
             float KnockHealth = safe_read<float>((uintptr_t)Player + off::NEARDEATHBREATH);
