@@ -119,7 +119,44 @@ TNameEntryArray *GetGNames() {
     
 
 */
+// ==============================================================================
+// 1. RAW STRUCTS (Memory Layout)
+// ==============================================================================
+struct CB_RawFName {
+    int32_t ComparisonIndex; // 0x0
+    int32_t Number;          // 0x4
+};
 
+struct CB_RawNameEntry {
+    uint16_t Header;         // 0x0
+    union {
+        char     AnsiName[1024];
+        uint16_t WideName[1024];
+    };
+};
+
+struct CB_RawNameEntryArray {
+    CB_RawNameEntry** Chunks[0x4000];
+};
+
+// ==============================================================================
+// 2. GLOBALS & POINTERS (Function Pointers & Confirmed Offsets)
+// ==============================================================================
+// GNames & GObjects (tumhare IDA offsets)
+#define CB_GNAMES_FN 0x10491486CULL
+#define CB_GOBJECTS_ADDR 0x109E108E8ULL
+
+// Dumper se confirmed offsets
+constexpr uintptr_t CB_OBJOBJECTS_OFFSET   = 0x10; // FUObjectArray->ObjObjects
+constexpr uintptr_t CB_NUMELEMENTS_OFFSET  = 0xC;  // TUObjectArray->NumElements
+constexpr uintptr_t CB_CLASSPRIVATE_OFFSET = 0x10; // UObject->ClassPrivate
+constexpr uintptr_t CB_NAME_OFFSET         = 0x18; // UObject->NamePrivate
+constexpr uintptr_t CB_SUPERSTRUCT_OFFSET  = 0x30; // UStruct->SuperStruct
+
+// GObjects nikalne ka function
+uintptr_t CB_GetGObjects() {
+    return GetShadowTrackerAddr(CB_GOBJECTS_ADDR);
+}
 
 namespace off {
     // ============ WORLD ============
@@ -468,49 +505,9 @@ if (!rootc) continue;
     }
 */
 
-#include <cstdint>
-#include <string>
-#include <unistd.h>
-#include <cmath>
 
-// ==============================================================================
-// 1. RAW STRUCTS (Memory Layout)
-// ==============================================================================
-struct CB_RawFName {
-    int32_t ComparisonIndex; // 0x0
-    int32_t Number;          // 0x4
-};
 
-struct CB_RawNameEntry {
-    uint16_t Header;         // 0x0
-    union {
-        char     AnsiName[1024];
-        uint16_t WideName[1024];
-    };
-};
 
-struct CB_RawNameEntryArray {
-    CB_RawNameEntry** Chunks[0x4000];
-};
-
-// ==============================================================================
-// 2. GLOBALS & POINTERS (Function Pointers & Confirmed Offsets)
-// ==============================================================================
-// GNames & GObjects (tumhare IDA offsets)
-#define CB_GNAMES_FN 0x10491486CULL
-#define CB_GOBJECTS_ADDR 0x109E108E8ULL
-
-// Dumper se confirmed offsets
-constexpr uintptr_t CB_OBJOBJECTS_OFFSET   = 0x10; // FUObjectArray->ObjObjects
-constexpr uintptr_t CB_NUMELEMENTS_OFFSET  = 0xC;  // TUObjectArray->NumElements
-constexpr uintptr_t CB_CLASSPRIVATE_OFFSET = 0x10; // UObject->ClassPrivate
-constexpr uintptr_t CB_NAME_OFFSET         = 0x18; // UObject->NamePrivate
-constexpr uintptr_t CB_SUPERSTRUCT_OFFSET  = 0x30; // UStruct->SuperStruct
-
-// GObjects nikalne ka function
-uintptr_t CB_GetGObjects() {
-    return GetShadowTrackerAddr(CB_GOBJECTS_ADDR);
-}
 
 // ==============================================================================
 // 3. GNAMES (String Read System)
