@@ -212,11 +212,14 @@ void DrawLine(UCanvas* Canvas, FVector2D posFrom, FVector2D posTo, float Thickne
     Canvas->K2_DrawLine({posFrom.X, posFrom.Y}, {posTo.X, posTo.Y}, Thickness, Color);
 }
 
-void DrawFilledRectangle(UCanvas* Canvas, float X, float Y, float Width, float Height, FLinearColor Color) {
-    for (float i = 0.f; i < Height; i += 1.f) {
-        FVector2D StartPos = { X, Y + i };
-        FVector2D EndPos   = { X + Width, Y + i };
-        Canvas->K2_DrawLine(StartPos, EndPos, 1.f, Color);
+void DrawFilledRectangle(UCanvas* Canvas, float X, float Y, float W, float H, FLinearColor Color) {
+    // Android: drawList->AddRectFilled(ImVec2(X, Y), ImVec2(X - W, Y - H), Color);
+    // Canvas equivalent: X se X-W tak, Y se Y-H tak
+    float startY = Y - H;
+    float endY   = Y;
+
+    for (float i = startY; i < endY; i += 1.f) {
+        Canvas->K2_DrawLine(FVector2D{ X - W, i }, FVector2D{ X, i }, 1.f, Color);
     }
 }
 
