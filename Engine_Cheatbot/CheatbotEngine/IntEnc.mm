@@ -545,31 +545,31 @@ if (!rootc) continue;
 }
 
         if (isLineEsp) {
-            float MaxHP       = safe_read<float>((uintptr_t)Player + off::HEALTHMAX);
-            float health      = safe_read<float>((uintptr_t)Player + off::HEALTH);
-            float KnockHealth = safe_read<float>((uintptr_t)Player + off::NEARDEATHBREATH);
+            
+    float MaxHP = safe_read<float>((uintptr_t)Player + off::HEALTHMAX);
+    float health = safe_read<float>((uintptr_t)Player + off::HEALTH);
+    float KnockHealth = safe_read<float>((uintptr_t)Player + off::NEARDEATHBREATH);
 
-            float X = Screen.X - (Screen.Z / 4) - 4;
-            float Y = (Screen.Y - 5) + (Screen.Z + 5);
-            float W = 3;
-            float H = Screen.Z + 5;
+    // Background
+    DrawFilledRectangle(Canvas, Screen.X - (Screen.Z / 4) - 4, (Screen.Y - 5) + (Screen.Z + 5), 3, (Screen.Z + 5), FLinearColor(0,0,0,1));
 
-            DrawFilledRectangle(Canvas, X, Y, W, H, FLinearColor(0,0,0,1));
-
-            if (MaxHP > 0.f) {
-                float ratio = health / MaxHP;
-                FLinearColor hc;
-                if (health > 70.f)       hc = FLinearColor(0,1,0,1);
-                else if (health > 30.f)  hc = FLinearColor(1,1,0,1);
-                else if (health > 0.f)   hc = FLinearColor(1,0,0,1);
-                else                     hc = FLinearColor(1,0,0,1);
-
-                float fillH = (health > 0.f) ? H * ratio : H * (KnockHealth / MaxHP);
-                DrawFilledRectangle(Canvas, X, Y, W, fillH, hc);
-            }
-        }
+    // Health Fill
+    if (health > 70.0f) {
+        DrawFilledRectangle(Canvas, Screen.X - (Screen.Z / 4) - 4, (Screen.Y - 5) + (Screen.Z + 5), 3, (Screen.Z + 5) * health / MaxHP, FLinearColor(0,1,0,1));
+    }
+    else if (health > 30.0f && health <= 70.0f) {
+        DrawFilledRectangle(Canvas, Screen.X - (Screen.Z / 4) - 4, (Screen.Y - 5) + (Screen.Z + 5), 3, (Screen.Z + 5) * health / MaxHP, FLinearColor(1,1,0,1));
+    }
+    else if (health > 0.0f && health <= 30.0f) {
+        DrawFilledRectangle(Canvas, Screen.X - (Screen.Z / 4) - 4, (Screen.Y - 5) + (Screen.Z + 5), 3, (Screen.Z + 5) * health / MaxHP, FLinearColor(1,0,0,1));
+    }
+    else if (health <= 0) {
+        DrawFilledRectangle(Canvas, Screen.X - (Screen.Z / 4) - 4, (Screen.Y - 5) + (Screen.Z + 5), 3, (Screen.Z + 5) * KnockHealth / MaxHP, FLinearColor(1,0,0,1));
     }
 }
+        }
+    }
+
 
 void DrawMSG(UCanvas* Canvas) {
     if (!Canvas || !Font) return;
@@ -578,7 +578,7 @@ void DrawMSG(UCanvas* Canvas) {
     g_screenHeight = Canvas->SizeY;
 
     // Clean watermark
-    DrawTextSafe(Canvas, FString(" hack"), 
+    DrawTextSafe(Canvas, FString(" @1hack"), 
                  FVector2D(g_screenWidth - 110.f, g_screenHeight - 45.f), 
                  FLinearColor(1.0f, 0.15f, 0.15f, 0.9f), 16);
 }
