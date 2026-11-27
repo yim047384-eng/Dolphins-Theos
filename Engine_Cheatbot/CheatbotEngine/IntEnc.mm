@@ -529,7 +529,7 @@ void DrawPlayerESP(UCanvas* Canvas) {
 auto rootc = safe_read<USceneComponent*>((uintptr_t)Player + off::PC_ROOTCOMPONENT);
 if (!rootc) continue;
 
-FVector PlayerPos = rootc->K2_GetComponentLocation();  // SDK, confirmed
+        FVector PlayerPos = rootc->K2_GetComponentLocation();  // SDK, confirmed
         FVector Screen;
         int distanceX;
         if (!WorldToScreenPlayer(PlayerPos, Screen, &distanceX)) continue;
@@ -540,11 +540,11 @@ FVector PlayerPos = rootc->K2_GetComponentLocation();  // SDK, confirmed
         if (!WorldToScreenBone(HeadPos, &HeadPosition) ||
             !WorldToScreenBone(RootPos, &RootPosition)) continue;
 
-        if (Cheat::Esp::Line) {
-            DrawLine(Canvas, {(float)g_screenWidth / 2, 0}, {HeadPosition.X, HeadPosition.Y}, Color, 2.0f);
-        }
+        if (isLineEsp) {
+        DrawLine(Canvas, {(float)g_screenWidth / 2, 0}, {HeadPosition.X, HeadPosition.Y}, 2.0f, Color);
+}
 
-        if (Cheat::Esp::Health) {
+        if (isLineEsp) {
             float MaxHP       = safe_read<float>((uintptr_t)Player + off::HEALTHMAX);
             float health      = safe_read<float>((uintptr_t)Player + off::HEALTH);
             float KnockHealth = safe_read<float>((uintptr_t)Player + off::NEARDEATHBREATH);
@@ -578,7 +578,7 @@ void DrawMSG(UCanvas* Canvas) {
     g_screenHeight = Canvas->SizeY;
 
     // Clean watermark
-    DrawTextSafe(Canvas, FString("IQ9999"), 
+    DrawTextSafe(Canvas, FString(" hack"), 
                  FVector2D(g_screenWidth - 110.f, g_screenHeight - 45.f), 
                  FLinearColor(1.0f, 0.15f, 0.15f, 0.9f), 16);
 }
