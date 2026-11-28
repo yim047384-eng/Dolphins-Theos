@@ -101,7 +101,7 @@ namespace {
     }
 }
 
-/*
+
 uintptr_t CHEATBOTOWNER() {
     return GetShadowTrackerAddr(0x109E108E8ULL);
 }
@@ -118,7 +118,7 @@ TNameEntryArray *GetGNames() {
 
     
 
-*/
+
 // ==============================================================================
 // 1. RAW STRUCTS (Memory Layout)
 // ==============================================================================
@@ -253,174 +253,6 @@ void DrawFilledRect(UCanvas* Canvas, FVector2D initial_pos, float w, float h, FL
 }
 
 
-struct CB_RawFName {
-    int32_t ComparisonIndex; // 0x0
-    int32_t Number;          // 0x4
-};
-
-struct CB_RawNameEntry {
-    uint16_t Header;         // 0x0
-    union {
-        char     AnsiName[1024];
-        uint16_t WideName[1024];
-    };
-};
-
-struct CB_RawNameEntryArray {
-    CB_RawNameEntry** Chunks[0x4000];
-};
-
-// ==============================================================================
-// 2. GLOBALS & POINTERS (Function Pointers & Confirmed Offsets)
-// ==============================================================================
-// GNames & GObjects (tumhare IDA offsets)
-#define CB_GNAMES_FN 0x10491486CULL
-#define CB_GOBJECTS_ADDR 0x109E108E8ULL
-
-// Dumper se confirmed offsets
-constexpr uintptr_t CB_OBJOBJECTS_OFFSET   = 0x10; // FUObjectArray->ObjObjects
-constexpr uintptr_t CB_NUMELEMENTS_OFFSET  = 0xC;  // TUObjectArray->NumElements
-constexpr uintptr_t CB_CLASSPRIVATE_OFFSET = 0x10; // UObject->ClassPrivate
-constexpr uintptr_t CB_NAME_OFFSET         = 0x18; // UObject->NamePrivate
-constexpr uintptr_t CB_SUPERSTRUCT_OFFSET  = 0x30; // UStruct->SuperStruct
-
-// GObjects nikalne ka function
-uintptr_t CB_GetGObjects() {
-    return GetShadowTrackerAddr(CB_GOBJECTS_ADDR);
-}
-
-struct CB_RawNameEntryArray* CB_GetGNames() {
-    uintptr_t fnAddr = GetShadowTrackerAddr(CB_GNAMES_FN);
-    if (!IsValidPtr(fnAddr)) return nullptr;
-    using FnType = CB_RawNameEntryArray *(*)();
-    return reinterpret_cast<FnType>(fnAddr)();
-}
-
-std::string CB_GetFNameString(int32_t Index) {
-    static CB_RawNameEntryArray* GNames = nullptr;
-    if (!GNames) {
-        GNames = CB_GetGNames();
-        while (!GNames) { sleep(1); GNames = CB_GetGNames(); }
-    }
-    if (!GNames || Index < 0) return "";
-
-    uintptr_t chunkPtr = *reinterpret_cast<uintptr_t*>((uintptr_t)GNames + ((Index >> 14) * sizeof(uintptr_t)));
-    if (!chunkPtr) return "";
-
-    uintptr_t entryPtr = *reinterpret_cast<uintptr_t*>(chunkPtr + ((Index & 0x3FFF) * sizeof(uintptr_t)));
-    if (!entryPtr) return "";
-
-    CB_RawNameEntry* entry = reinterpret_cast<CB_RawNameEntry*>(entryPtr);
-    if (!entry) return "";
-
-    uint16_t header = entry->Header;
-    bool isWide = (header & 1);
-    int length = (header >> 6) & 0x3FF;
-
-    std::string result;
-    result.reserve(length);
-
-    if (isWide) {
-        for (int i = 0; i < length; i++) result.push_back((char)(entry->WideName[i] & 0xFF));
-    } else {
-        for (int i = 0; i < length; i++) result.push_back(entry->AnsiName[i]);
-    }
-    return result;
-}
-
-std::string CB_GetObjectName(uintptr_t Object) {
-    if (!Object) return "";
-    CB_RawFName fname = *reinterpret_cast<CB_RawFName*>(Object + CB_NAME_OFFSET);
-    return CB_GetFNameString(fname.ComparisonIndex);
-}
-
-// ==============================================================================
-// 4. GOBJECTS (Class Finder) & ISA
-// ==============================================================================
-uintptr_t CB_FindClassByName(const std::string& ClassName) {
-    uintptr_t GObjects = CB_GetGObjects();
-    if (!GObjects) return 0;
-
-    // ObjObjects pointer nikaalo
-    uintptr_t ObjObjects = safe_read<uintptr_t>(GObjects + CB_OBJOBJECTS_OFFSET);
-    if (!ObjObjects) return 0;
-
-    // NumElements nikaalo
-    int32_t NumElements = safe_read<int32_t>(ObjObjects + CB_NUMELEMENTS_OFFSET);
-    if (NumElements <= 0 || NumElements > 2000000) return 0; // Safety check
-
-    // Array walk
-    uintptr_t* Objects = reinterpret_cast<uintptr_t*>(ObjObjects);
-
-    for (int i = 0; i < NumElements; i++) {
-        uintptr_t Object = safe_read<uintptr_t>((uintptr_t)&Objects[i]);
-        if (!Object) continue;
-
-        std::string Name = CB_GetObjectName(Object);
-        if (Name == ClassName) {
-            return Object;
-        }
-    }
-    return 0;
-}
-
-bool CB_RawIsA(uintptr_t Object, uintptr_t TargetClass) {
-    if (!Object || !TargetClass) return false;
-    
-    uintptr_t ClassPtr = safe_read<uintptr_t>(Object + CB_CLASSPRIVATE_OFFSET);
-    while (ClassPtr) {
-        if (ClassPtr == TargetClass) return true;
-        ClassPtr = safe_read<uintptr_t>(ClassPtr + CB_SUPERSTRUCT_OFFSET);
-    }
-    return false;
-}
-
-bool CB_IsPlayerCharacter(uintptr_t Actor) {
-    static uintptr_t PlayerCharClass = 0;
-    static bool IsSearching = false;
-    
-    if (PlayerCharClass == 0 && !IsSearching) {
-        IsSearching = true;
-        PlayerCharClass = CB_FindClassByName("ASTExtraPlayerCharacter");
-        if (PlayerCharClass == 0) PlayerCharClass = CB_FindClassByName("UAECharacter");
-        IsSearching = false;
-    }
-    
-    if (PlayerCharClass != 0) return CB_RawIsA(Actor, PlayerCharClass);
-    
-    // Fallback agar class pointer na mile
-    uintptr_t ClassPtr = safe_read<uintptr_t>(Actor + CB_CLASSPRIVATE_OFFSET);
-    std::string className = CB_GetObjectName(ClassPtr);
-    return (className.find("PlayerCharacter") != std::string::npos || className.find("UAECharacter") != std::string::npos);
-}
-void* LoadFont() {
-    while (!Font) {
-        uintptr_t GObjects = CB_GetGObjects();
-        if (GObjects) {
-            uintptr_t ObjObjects = safe_read<uintptr_t>(GObjects + CB_OBJOBJECTS_OFFSET);
-            if (ObjObjects) {
-                int32_t NumElements = safe_read<int32_t>(ObjObjects + CB_NUMELEMENTS_OFFSET);
-                if (NumElements > 0) {
-                    uintptr_t* Objects = reinterpret_cast<uintptr_t*>(ObjObjects);
-                    for (int i = 0; i < NumElements; i++) {
-                        uintptr_t obj = safe_read<uintptr_t>((uintptr_t)&Objects[i]);
-                        if (!obj) continue;
-
-                        std::string name = CB_GetObjectName(obj);
-                        // Exact string match (jaise SDK FindObject karta tha)
-                        if (name == "RobotoTiny") {
-                            Font = reinterpret_cast<UFont*>(obj);
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-        if (!Font) sleep(1);
-    }
-    return 0;
-}
-
 
 
 struct Matrix
@@ -428,46 +260,14 @@ struct Matrix
     float m[4][4];
 };
 
-/*
+
 Matrix GetMatrix() {
     static UCanvas* Canvas = nullptr;
     if (!Canvas) Canvas = UObject::FindObject<UCanvas>("Canvas Transient.DebugCanvasObject");
     if (!Canvas) return Matrix{};
     return safe_read<Matrix>((uintptr_t)Canvas + 0x270);
-}*/
-
-Matrix GetMatrix() {
-    static UCanvas* Canvas = nullptr;
-    
-    if (!Canvas) {
-        uintptr_t GObjects = CB_GetGObjects();
-        if (GObjects) {
-            uintptr_t ObjObjects = safe_read<uintptr_t>(GObjects + CB_OBJOBJECTS_OFFSET);
-            if (ObjObjects) {
-                int32_t NumElements = safe_read<int32_t>(ObjObjects + CB_NUMELEMENTS_OFFSET);
-                if (NumElements > 0) {
-                    uintptr_t* Objects = reinterpret_cast<uintptr_t*>(ObjObjects);
-                    for (int i = 0; i < NumElements; i++) {
-                        uintptr_t obj = safe_read<uintptr_t>((uintptr_t)&Objects[i]);
-                        if (!obj) continue;
-
-                        std::string name = CB_GetObjectName(obj);
-                        
-                        // "Canvas Transient.DebugCanvasObject" ka short name "DebugCanvasObject" hoga
-                        if (name.find("DebugCanvasObject") != std::string::npos || name.find("Canvas") != std::string::npos) {
-                            // Confirm karne ke liye ki ye Canvas hi hai
-                            Canvas = reinterpret_cast<UCanvas*>(obj);
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    if (!Canvas) return Matrix{};
-    return safe_read<Matrix>((uintptr_t)Canvas + 0x270); // 0x270 = arm64 Canvas Matrix offset
 }
+
 
 bool WorldToScreenPlayer(FVector pos, FVector& screen, int* distance) {
     Matrix ViewMatrix = GetMatrix();
@@ -517,7 +317,7 @@ bool WorldToScreenBone(FVector Position, FVector2D* Screen) {
     return true;
 }
 
-/*
+
 void DrawPlayerESP(UCanvas* Canvas) {
     if (!Canvas || !localPlayer || !localPlayerController) return;
 
@@ -607,122 +407,6 @@ if (!rootc) continue;
 }
         }
     }
-*/
-
-
-
-
-
-// ==============================================================================
-// 3. GNAMES (String Read System)
-// ==============================================================================
-
-
-
-// ==============================================================================
-// 5. DRAW PLAYER ESP (Final, Proper)
-// ==============================================================================
-void DrawPlayerESP(UCanvas* Canvas) {
-    if (!Canvas || !localPlayer || !localPlayerController) return;
-
-    int totalEnemies = 0, totalBots = 0;
-
-    // Local Player Data
-    uint32_t lKey  = safe_read<uint32_t>((uintptr_t)localPlayer + off::CHAR_PLAYERKEY);
-    uint32_t lTeam = safe_read<uint32_t>((uintptr_t)localPlayer + off::CHAR_TEAMID);
-
-    auto myRoot = safe_read<USceneComponent*>((uintptr_t)localPlayer + off::PC_ROOTCOMPONENT);
-    if (!myRoot) return;
-    FVector myLoc = safe_read<FVector>((uintptr_t)myRoot + off::SCENE_RELATIVELOCATION);
-
-    auto Actors = GetActors();
-    for (auto& Actor : Actors) {
-        if (!Actor || !IsValidPtr((uintptr_t)Actor)) continue;
-
-        // Offset-base IsA (SDK hata diya)
-        if (!CB_IsPlayerCharacter((uintptr_t)Actor)) continue;
-
-        auto Player = reinterpret_cast<ASTExtraPlayerCharacter*>(Actor);
-        auto hisRoot = safe_read<USceneComponent*>((uintptr_t)Player + off::PC_ROOTCOMPONENT);
-        if (!hisRoot) continue;
-
-        // Filters
-        uint32_t pKey  = safe_read<uint32_t>((uintptr_t)Player + off::CHAR_PLAYERKEY);
-        uint32_t pTeam = safe_read<uint32_t>((uintptr_t)Player + off::CHAR_TEAMID);
-        bool dead   = safe_read<bool>((uintptr_t)Player + off::BDEAD);
-        bool hidden = safe_read<bool>((uintptr_t)Player + off::BHIDDEN);
-        bool isBot  = safe_read<bool>((uintptr_t)Player + off::BENSURE);
-
-        if (pKey == lKey || pTeam == lTeam || dead || hidden) continue;
-
-        // Distance
-        FVector hisLoc = safe_read<FVector>((uintptr_t)hisRoot + off::SCENE_RELATIVELOCATION);
-        float dx = hisLoc.X - myLoc.X, dy = hisLoc.Y - myLoc.Y, dz = hisLoc.Z - myLoc.Z;
-        float Distance = sqrtf(dx*dx + dy*dy + dz*dz) / 100.f;
-        if (Distance > 500.f) continue;
-
-        if (isBot) totalBots++; else totalEnemies++;
-
-        // Visibility (SDK LineOfSightTo for now)
-        FVector HeadBone = Player->GetBonePos("Head", {});
-        bool IsVisible = localPlayerController->LineOfSightTo(localPlayerController->PlayerCameraManager, HeadBone, true);
-
-        // Color logic
-        FLinearColor Color;
-        if (isBot && IsVisible)        Color = FLinearColor(0,1,0,1); // Bot Visible - Green
-        else if (!isBot && IsVisible)  Color = FLinearColor(0,1,0,1); // Player Visible - Green
-        else if (!isBot && !IsVisible) Color = FLinearColor(1,0,0,1); // Player Hidden - Red
-        else                           Color = FLinearColor(1,1,1,1); // Bot Hidden - White
-
-        // World to Screen (K2_GetComponentLocation SDK)
-        FVector PlayerPos = hisRoot->K2_GetComponentLocation();
-        FVector Screen;
-        int distanceX;
-        if (!WorldToScreenPlayer(PlayerPos, Screen, &distanceX)) continue;
-
-        FVector HeadPos = Player->GetBonePos("Head", {});
-        FVector RootPos = Player->GetBonePos("Root", {});
-        FVector2D HeadPosition, RootPosition;
-        if (!WorldToScreenBone(HeadPos, &HeadPosition) ||
-            !WorldToScreenBone(RootPos, &RootPosition)) continue;
-
-        // Draw Line
-        if (isLineEsp) {
-            DrawLine(Canvas, {(float)g_screenWidth / 2, 0}, {HeadPosition.X, HeadPosition.Y}, 2.0f, Color);
-        }
-
-        // Draw Health Bar
-        if (isLineEsp) {
-            float MaxHP       = safe_read<float>((uintptr_t)Player + off::HEALTHMAX);
-            float health      = safe_read<float>((uintptr_t)Player + off::HEALTH);
-            float KnockHealth = safe_read<float>((uintptr_t)Player + off::NEARDEATHBREATH);
-
-            float X = Screen.X - (Screen.Z / 4) - 4;
-            float Y = (Screen.Y - 5) + (Screen.Z + 5);
-            float W = 3;
-            float H = Screen.Z + 5;
-
-            // Background
-            DrawFilledRectangle(Canvas, X, Y, W, H, FLinearColor(0,0,0,1));
-
-            if (MaxHP > 0.f) {
-                float ratio = health / MaxHP;
-                if (ratio > 1.f) ratio = 1.f;
-                if (ratio < 0.f) ratio = 0.f;
-
-                float fillH = (health > 0.f) ? (H * ratio) : (H * (KnockHealth / MaxHP));
-
-                FLinearColor hc;
-                if (health > 70.f)       hc = FLinearColor(0,1,0,1); // Green
-                else if (health > 30.f)  hc = FLinearColor(1,1,0,1); // Yellow
-                else                     hc = FLinearColor(1,0,0,1); // Red
-
-                // Fill
-                DrawFilledRectangle(Canvas, X, Y, W, fillH, hc);
-            }
-        }
-    }
-}
 
 void DrawMSG(UCanvas* Canvas) {
     if (!Canvas || !Font) return;
@@ -736,7 +420,7 @@ void DrawMSG(UCanvas* Canvas) {
                  FLinearColor(1.0f, 0.15f, 0.15f, 0.9f), 16);
 }
 
-/*
+
 // ==========================================
 // ========== HOOKING =======================
 // ==========================================
@@ -810,108 +494,6 @@ void *botcheatxd() {
                 auto View = (UGameViewportClient *)obj;
                 auto vTable = (void**)(View->VTable);
                 if (vTable && vTable[134] != (void*)hookCheatbot) {
-                    oriCheatbot = decltype(oriCheatbot)(vTable[134]);
-                    vTable[134] = (void*)hookCheatbot;
-                    hooked = true;
-                    break;
-                }
-            }
-        }
-    }
-    return 0;
-}
-
-*/
-
-void* (*oriCheatbot)(UGameViewportClient* ViewportClient, UCanvas* Canvas);
-
-void* hookCheatbot(UGameViewportClient* ViewportClient, UCanvas* Canvas) {
-    if (!Canvas) return nullptr;
-    
-    // Canvas Size offset-base
-    g_screenWidth  = safe_read<int32_t>((uintptr_t)Canvas + off::CANVAS_SIZEX); // 0x40
-    g_screenHeight = safe_read<int32_t>((uintptr_t)Canvas + off::CANVAS_SIZEY); // 0x44
-
-    static bool loadFont = false;
-    if (!loadFont) { LoadFont(); loadFont = true; }
-    if (!Font) return nullptr;
-
-    auto GWorld = GetFullWorld();
-    if (GWorld) {
-        auto NetDriver = safe_read<UNetDriver*>((uintptr_t)GWorld + off::UWORLD_NETDRIVER);
-        if (NetDriver) {
-            auto ServerConnection = safe_read<UNetConnection*>((uintptr_t)NetDriver + off::NETDRIVER_SERVERCONN);
-            if (ServerConnection) {
-                localPlayerController = safe_read<ASTExtraPlayerController*>(
-                    (uintptr_t)ServerConnection + off::SERVERCONN_PLAYERCTRL);
-
-                if (localPlayerController) {
-                    auto Actors = GetActors();
-                    for (auto& Actor : Actors) {
-                        if (!Actor || !IsValidPtr((uintptr_t)Actor)) continue;
-                        
-                        // Offset-base IsA
-                        if (!CB_IsPlayerCharacter((uintptr_t)Actor)) continue;
-
-                        auto P = reinterpret_cast<ASTExtraPlayerCharacter*>(Actor);
-                        if (!safe_read<USceneComponent*>((uintptr_t)P + off::PC_ROOTCOMPONENT)) continue;
-
-                        // PlayerKey compare
-                        uint32_t pKey = safe_read<uint32_t>((uintptr_t)P + off::CHAR_PLAYERKEY);
-                        uint32_t cKey = safe_read<uint32_t>((uintptr_t)localPlayerController + off::CTRL_PLAYERKEY);
-
-                        if (pKey == cKey) {
-                            localPlayer = P;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    DrawMSG(Canvas);
-    DrawPlayerESP(Canvas);
-    return oriCheatbot(ViewportClient, Canvas);
-}
-
-// ==============================================================================
-// HOOK INSTALLER (botcheatxd) - Offset-base class check
-// ==============================================================================
-void *botcheatxd() {
-    if (!Cheatbotlp) return 0;
-    
-    static bool hooked = false;
-    if (hooked) return 0;
-    
-    // GObjects walk (apne CB_FindClassByName ka use karo, ya loop khud likho)
-    uintptr_t GObjects = CB_GetGObjects();
-    if (!GObjects) return 0;
-
-    uintptr_t ObjObjects = safe_read<uintptr_t>(GObjects + CB_OBJOBJECTS_OFFSET);
-    if (!ObjObjects) return 0;
-
-    int32_t NumElements = safe_read<int32_t>(ObjObjects + CB_NUMELEMENTS_OFFSET);
-    if (NumElements <= 0) return 0;
-
-    uintptr_t* Objects = reinterpret_cast<uintptr_t*>(ObjObjects);
-
-    for (int i = 0; i < NumElements; i++) {
-        uintptr_t obj = safe_read<uintptr_t>((uintptr_t)&Objects[i]);
-        if (!obj) continue;
-
-        // SDK IsA ki jagah string check
-        std::string className = CB_GetObjectName(obj);
-        if (className == "GameViewportClient") {
-            auto View = reinterpret_cast<UGameViewportClient*>(obj);
-            
-            // VTable check (offset-base)
-            uintptr_t vTableAddr = safe_read<uintptr_t>((uintptr_t)View + 0x0); // UObject->VTable 0x0
-            if (vTableAddr) {
-                void** vTable = reinterpret_cast<void**>(vTableAddr);
-                
-                // vTable[134] = Draw hook offset (tumhara)
-                if (vTable[134] != (void*)hookCheatbot) {
                     oriCheatbot = decltype(oriCheatbot)(vTable[134]);
                     vTable[134] = (void*)hookCheatbot;
                     hooked = true;
@@ -1036,9 +618,9 @@ void *botcheatxd() {
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(10* NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         if(Cheatbotlp) { botcheatxd(); }
     });
-//    FName::GNames = GetGNames();
-   // while (!FName::GNames) { FName::GNames = GetGNames(); sleep(1); }
-    //UObject::GUObjectArray = (FUObjectArray *) (CHEATBOTOWNER());
+   FName::GNames = GetGNames();
+   while (!FName::GNames) { FName::GNames = GetGNames(); sleep(1); }
+   UObject::GUObjectArray = (FUObjectArray *) (CHEATBOTOWNER());
 }
 
 
