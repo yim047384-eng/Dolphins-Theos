@@ -253,7 +253,13 @@ void DrawFilledRect(UCanvas* Canvas, FVector2D initial_pos, float w, float h, FL
 }
 
 
-
+void *LoadFont() {
+    while (!Font) {
+        Font = UObject::FindObject<UFont>(std::string("Font RobotoTiny.RobotoTiny"));
+        sleep(1);
+    }
+    return 0;
+} //ye offset base karna hai sdk offset base wala
 
 struct Matrix
 {
@@ -408,6 +414,9 @@ if (!rootc) continue;
         }
     }
 
+
+
+
 void DrawMSG(UCanvas* Canvas) {
     if (!Canvas || !Font) return;
        
@@ -424,7 +433,7 @@ void DrawMSG(UCanvas* Canvas) {
 // ==========================================
 // ========== HOOKING =======================
 // ==========================================
-void* (*oriCheatbot)(UGameViewportClient* ViewportClient, UCanvas* Canvas);
+/*void* (*oriCheatbot)(UGameViewportClient* ViewportClient, UCanvas* Canvas);
 // ---- hook, safe_read ke saath ----
 void* hookCheatbot(UGameViewportClient* ViewportClient, UCanvas* Canvas) {
     if (!Canvas) return nullptr;
@@ -474,7 +483,91 @@ void* hookCheatbot(UGameViewportClient* ViewportClient, UCanvas* Canvas) {
     return oriCheatbot(ViewportClient, Canvas);
 }
 
+*/
 
+void* (*oriCheatbot)(UGameViewportClient* ViewportClient, UCanvas* Canvas);
+void* hookCheatbot(UGameViewportClient* ViewportClient, UCanvas* Canvas) {
+    if (!Canvas) return nullptr;
+    g_screenWidth  = Canvas->SizeX;
+    g_screenHeight = Canvas->SizeY;
+
+    static bool loadFont = false;
+    if (!loadFont) { LoadFont(); loadFont = true; }
+    if (!Font) return nullptr;
+
+    auto GWorld = GetFullWorld();
+    if (GWorld) {
+        auto NetDriver = safe_read<UNetDriver*>((uintptr_t)GWorld + off::UWORLD_NETDRIVER);
+        if (NetDriver) {
+            auto ServerConnection = safe_read<UNetConnection*>((uintptr_t)NetDriver + off::NETDRIVER_SERVERCONN);
+            if (ServerConnection) {
+                localPlayerController = safe_read<ASTExtraPlayerController*>(
+                    (uintptr_t)ServerConnection + off::SERVERCONN_PLAYERCTRL);
+
+    if (localPlayerController) {
+        auto Actors = GetActors();
+        for (auto& Actor : Actors) {
+            if (!Actor || !IsValidPtr((uintptr_t)Actor)) continue;
+            if (!Actor->IsA(ASTExtraPlayerCharacter::StaticClass())) continue;
+
+            auto P = reinterpret_cast<ASTExtraPlayerCharacter*>(Actor);
+            if (!safe_read<USceneComponent*>((uintptr_t)P + off::PC_ROOTCOMPONENT)) continue;
+
+            uint32_t pKey = safe_read<uint32_t>((uintptr_t)P + off::CHAR_PLAYERKEY);
+            uint32_t cKey = safe_read<uint32_t>((uintptr_t)localPlayerController + off::CTRL_PLAYERKEY);
+
+            if (pKey == cKey) {
+                localPlayer = P;
+                break;
+            }
+        }
+
+        // ← YAHAN DAAL DUMP CODE
+        static bool dumped = false;
+if (!dumped && localPlayerController) {
+    auto Actors2 = GetActors();
+    for (auto& Actor : Actors2) {
+        if (!Actor || !IsValidPtr((uintptr_t)Actor)) continue;
+        if (!Actor->IsA(ASTExtraPlayerCharacter::StaticClass())) continue;
+        auto P = reinterpret_cast<ASTExtraPlayerCharacter*>(Actor);
+        
+        uint32_t pKey = safe_read<uint32_t>((uintptr_t)P + off::CHAR_PLAYERKEY);
+        uint32_t cKey = safe_read<uint32_t>((uintptr_t)localPlayerController + off::CTRL_PLAYERKEY);
+        if (pKey == cKey) continue; // khud skip
+
+        uintptr_t mesh      = safe_read<uintptr_t>((uintptr_t)P + off::MESH);
+        if (!IsValidPtr(mesh)) continue;
+        uintptr_t boneData  = safe_read<uintptr_t>(mesh + off::BONE_ARRAY_DATA);
+        int32_t   boneCount = safe_read<int32_t>  (mesh + off::BONE_ARRAY_COUNT);
+        if (!IsValidPtr(boneData) || boneCount <= 0 || boneCount > 500) continue;
+
+        FILE* f = fopen("/var/mobile/Documents/bones.txt", "w");
+        if (!f) f = fopen("/tmp/bones.txt", "w");
+        if (f) {
+            fprintf(f, "Total bones: %d\n\n", boneCount);
+            for (int i = 0; i < boneCount; i++) {
+                FVector b = safe_read<FVector>(boneData + i * 0x30 + 0x10);
+                // zero skip karo
+                if (b.X == 0.f && b.Y == 0.f && b.Z == 0.f) continue;
+                fprintf(f, "[%3d] X=%8.1f Y=%8.1f Z=%8.1f\n", i, b.X, b.Y, b.Z);
+            }
+            fclose(f);
+            dumped = true;
+        }
+        break;
+    }
+}
+
+
+    }
+            }
+        }
+    }
+
+    DrawMSG(Canvas);
+    DrawPlayerESP(Canvas);
+    return oriCheatbot(ViewportClient, Canvas);
+}
 
 
 
