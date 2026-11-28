@@ -521,54 +521,56 @@ void* hookCheatbot(UGameViewportClient* ViewportClient, UCanvas* Canvas) {
             uint32_t pKey = safe_read<uint32_t>((uintptr_t)P + off::CHAR_PLAYERKEY);
             uint32_t cKey = safe_read<uint32_t>((uintptr_t)localPlayerController + off::CTRL_PLAYERKEY);
 
-            if (pKey == cKey) {
-                localPlayer = P;
-                break;
-            }
-        }
-
-        // ← YAHAN DAAL DUMP CODE
-        static bool dumped = false;
-if (!dumped && localPlayerController) {
-    auto Actors2 = GetActors();
-    for (auto& Actor : Actors2) {
-        if (!Actor || !IsValidPtr((uintptr_t)Actor)) continue;
-        if (!Actor->IsA(ASTExtraPlayerCharacter::StaticClass())) continue;
-        auto P = reinterpret_cast<ASTExtraPlayerCharacter*>(Actor);
-        
-        uint32_t pKey = safe_read<uint32_t>((uintptr_t)P + off::CHAR_PLAYERKEY);
-        uint32_t cKey = safe_read<uint32_t>((uintptr_t)localPlayerController + off::CTRL_PLAYERKEY);
-        if (pKey == cKey) continue; // khud skip
-
-        uintptr_t mesh      = safe_read<uintptr_t>((uintptr_t)P + off::MESH);
-        if (!IsValidPtr(mesh)) continue;
-        uintptr_t boneData  = safe_read<uintptr_t>(mesh + off::BONE_ARRAY_DATA);
-        int32_t   boneCount = safe_read<int32_t>  (mesh + off::BONE_ARRAY_COUNT);
-        if (!IsValidPtr(boneData) || boneCount <= 0 || boneCount > 500) continue;
-
-        FILE* f = fopen("/var/mobile/Documents/bones.txt", "w");
-        if (!f) f = fopen("/tmp/bones.txt", "w");
-        if (f) {
-            fprintf(f, "Total bones: %d\n\n", boneCount);
-            for (int i = 0; i < boneCount; i++) {
-                FVector b = safe_read<FVector>(boneData + i * 0x30 + 0x10);
-                // zero skip karo
-                if (b.X == 0.f && b.Y == 0.f && b.Z == 0.f) continue;
-                fprintf(f, "[%3d] X=%8.1f Y=%8.1f Z=%8.1f\n", i, b.X, b.Y, b.Z);
-            }
-            fclose(f);
-            dumped = true;
-        }
-        break;
-    }
-}
-
-
-    }
+           if (pKey == cKey) {
+            localPlayer = P;
+            break;
+                   }
+                 }
+               }
             }
         }
     }
 
+    // ← YAHAN SE SHURU
+    static bool dumped = false;
+    if (!dumped && localPlayerController) {
+        auto DumpActors = GetActors();
+        for (auto& Actor : DumpActors) {
+            if (!Actor || !IsValidPtr((uintptr_t)Actor)) continue;
+            if (!Actor->IsA(ASTExtraPlayerCharacter::StaticClass())) continue;
+            auto P = reinterpret_cast<ASTExtraPlayerCharacter*>(Actor);
+
+            uint32_t pKey = safe_read<uint32_t>((uintptr_t)P + off::CHAR_PLAYERKEY);
+            uint32_t cKey = safe_read<uint32_t>((uintptr_t)localPlayerController + off::CTRL_PLAYERKEY);
+            if (pKey == cKey) continue; // khud skip
+
+            uintptr_t mesh     = safe_read<uintptr_t>((uintptr_t)P + off::MESH);
+            if (!IsValidPtr(mesh)) continue;
+            uintptr_t boneData = safe_read<uintptr_t>(mesh + off::BONE_ARRAY_DATA);
+            int32_t boneCount  = safe_read<int32_t>  (mesh + off::BONE_ARRAY_COUNT);
+            if (!IsValidPtr(boneData) || boneCount <= 0 || boneCount > 500) continue;
+
+            NSString* docPath = [NSHomeDirectory() stringByAppendingPathComponent:@"Documents/bones.txt"];
+            FILE* f = fopen([docPath UTF8String], "w");
+            if (f) {
+                fprintf(f, "Total bones: %d\n\n", boneCount);
+                for (int i = 0; i < boneCount; i++) {
+                    FVector b = safe_read<FVector>(boneData + i * 0x30 + 0x10);
+                    if (b.X == 0.f && b.Y == 0.f && b.Z == 0.f) continue;
+                    fprintf(f, "[%3d] X=%8.1f Y=%8.1f Z=%8.1f\n", i, b.X, b.Y, b.Z);
+                }
+                fclose(f);
+                dumped = true;
+                printf("[dump] bones.txt saved!\n");
+            } else {
+                printf("[dump] fopen failed: %s\n", strerror(errno));
+            }
+            break;
+        }
+    }
+    // ← YAHAN KHATAM
+
+    
     DrawMSG(Canvas);
     DrawPlayerESP(Canvas);
     return oriCheatbot(ViewportClient, Canvas);
