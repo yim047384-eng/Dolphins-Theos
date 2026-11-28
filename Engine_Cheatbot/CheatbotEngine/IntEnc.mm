@@ -122,6 +122,137 @@ TNameEntryArray *GetGNames() {
 // ==============================================================================
 // 1. RAW STRUCTS (Memory Layout)
 // ==============================================================================
+
+namespace off {
+    // ============ WORLD ============
+    constexpr uintptr_t FUN            = 0x1019A422C;
+    constexpr uintptr_t DATA           = 0x10A029E80;
+    constexpr uintptr_t ACTORARRAY_FUN = 0x105C96B1C;
+
+    // ============ WORLD CHAIN ============
+    constexpr uintptr_t UWORLD_PERSISTENTLEVEL = 0x30;
+    constexpr uintptr_t UWORLD_NETDRIVER       = 0x38;
+    constexpr uintptr_t NETDRIVER_SERVERCONN   = 0x78;
+    constexpr uintptr_t SERVERCONN_PLAYERCTRL  = 0x30;
+
+    // ============ CHARACTER ============
+    constexpr uintptr_t PC_ROOTCOMPONENT = 0x208;
+    constexpr uintptr_t CHAR_PLAYERKEY   = 0x990;
+    constexpr uintptr_t CTRL_PLAYERKEY   = 0x920;
+    constexpr uintptr_t CHAR_TEAMID      = 0x9a8;
+    constexpr uintptr_t BDEAD            = 0xe8c;
+    constexpr uintptr_t BHIDDEN          = 0xe8;
+    constexpr uintptr_t BENSURE          = 0xa69;
+
+    // ============ HEALTH ============
+    constexpr uintptr_t HEALTH          = 0xe70;  // STExtraCharacter::Health (float)
+    constexpr uintptr_t HEALTHMAX       = 0xe74;  // STExtraCharacter::HealthMax (float)
+    constexpr uintptr_t NEARDEATHBREATH = 0x1cb0; // STExtraBaseCharacter::NearDeathBreath (float)
+
+    // ============ SCENE ============
+    constexpr uintptr_t SCENE_RELATIVELOCATION = 0x1e4;
+    constexpr uintptr_t SCENE_WORLDLOCATION    = 0x218;
+
+    // ============ CANVAS ============
+    constexpr uintptr_t CANVAS_SIZEX = 0x40;
+    constexpr uintptr_t CANVAS_SIZEY = 0x44;
+}
+    
+static uintptr_t image_slide_by_name(const char* name) {
+    uint32_t n = _dyld_image_count();
+    for (uint32_t i = 0; i < n; i++) {
+        const char* nm = _dyld_get_image_name(i);
+        if (nm && strstr(nm, name))
+            return (uintptr_t)_dyld_get_image_vmaddr_slide(i);
+    }
+    return 0;
+}
+
+UWorld* GetFullWorld() {
+    uintptr_t slide = image_slide_by_name("ShadowTrackerExtra");
+    if (!slide) return nullptr;
+    using Fn = UWorld*(*)(uintptr_t);
+    return reinterpret_cast<Fn>(slide + off::FUN)(slide + off::DATA);
+}
+
+// ---- safe read helper ----
+template <typename T>
+static inline T safe_read(uintptr_t addr) {
+    if (!addr) return T{};
+    return *reinterpret_cast<T*>(addr);
+}
+
+// ---- GetActors, safe_read ke saath ----
+std::vector<AActor*> GetActors() {
+    auto World = GetFullWorld();
+    if (!World) return {};
+
+    auto PersistentLevel = safe_read<ULevel*>((uintptr_t)World + 0x30); // SDK se hi tha, offset bhi de diya
+    if (!PersistentLevel) return {};
+
+    struct GovnoArray { uintptr_t base; int32_t count; int32_t max; };
+
+    uintptr_t slide = image_slide_by_name("ShadowTrackerExtra");
+    if (!slide) return {};
+
+    using ActorArrayFn = GovnoArray*(*)(uintptr_t);
+    auto actorArrayFn = reinterpret_cast<ActorArrayFn>(slide + off::ACTORARRAY_FUN);
+
+    GovnoArray* arr = actorArrayFn((uintptr_t)PersistentLevel);
+    if (!arr || arr->count <= 0) return {};
+
+    std::vector<AActor*> actors;
+    actors.reserve(arr->count);
+    for (int i = 0; i < arr->count; i++) {
+        uintptr_t Actor = safe_read<uintptr_t>(arr->base + i * sizeof(uintptr_t));
+        if (Actor)
+            actors.push_back(reinterpret_cast<AActor*>(Actor));
+    }
+    return actors;
+}
+
+void DrawLine(UCanvas* Canvas, FVector2D posFrom, FVector2D posTo, float Thickness, FLinearColor Color) {
+    Canvas->K2_DrawLine({posFrom.X, posFrom.Y}, {posTo.X, posTo.Y}, Thickness, Color);
+}
+
+void DrawFilledRectangle(UCanvas* Canvas, float X, float Y, float W, float H, FLinearColor Color) {
+    // Android: drawList->AddRectFilled(ImVec2(X, Y), ImVec2(X - W, Y - H), Color);
+    // Canvas equivalent: X se X-W tak, Y se Y-H tak
+    float startY = Y - H;
+    float endY   = Y;
+
+    for (float i = startY; i < endY; i += 1.f) {
+        Canvas->K2_DrawLine(FVector2D{ X - W, i }, FVector2D{ X, i }, 1.f, Color);
+    }
+}
+
+void DrawText(UCanvas* Canvas, FString Text, FVector2D Pos, FLinearColor Color, FLinearColor OutlineColor, int FontSize, bool isCenter) {
+    if (!Canvas || !Font)
+        return;
+    Font->LegacyFontSize = FontSize;
+    Canvas->K2_DrawText(Font, Text, Pos, Color, 1.f, {}, {}, isCenter, false, true, OutlineColor);
+    Font->LegacyFontSize = 13;
+}
+
+void Drawtext(UCanvas* Canvas, FString Text, FVector2D Pos, FLinearColor Color, FLinearColor OutlineColor, int FontSize, bool isCenter) {
+    if (!Canvas || !Font)
+        return;
+    Font->LegacyFontSize = FontSize;
+    Canvas->K2_DrawText(Font, Text, Pos, Color, 1.f, {}, {}, isCenter, false, false, OutlineColor);
+    Font->LegacyFontSize = 14;
+}
+void DrawTextSafe(UCanvas* Canvas, FString Text, FVector2D Pos, FLinearColor Color, int size = 12) {
+    if (!Font || !Canvas) return;
+    Font->LegacyFontSize = size;
+    Canvas->K2_DrawText(Font, Text, Pos, Color, 1.0f, FLinearColor(0,0,0,0), FVector2D(0,0), true, true, true, FLinearColor(0,0,0,1));
+}
+void DrawFilledRect(UCanvas* Canvas, FVector2D initial_pos, float w, float h, FLinearColor Color)
+{
+    for (float i = 0.f; i < h; i += 1.f)
+    Canvas->K2_DrawLine(FVector2D(initial_pos.X, initial_pos.Y + i), FVector2D(initial_pos.X + w, initial_pos.Y + i), 1.f, Color);
+}
+
+
 struct CB_RawFName {
     int32_t ComparisonIndex; // 0x0
     int32_t Number;          // 0x4
@@ -262,137 +393,6 @@ bool CB_IsPlayerCharacter(uintptr_t Actor) {
     std::string className = CB_GetObjectName(ClassPtr);
     return (className.find("PlayerCharacter") != std::string::npos || className.find("UAECharacter") != std::string::npos);
 }
-namespace off {
-    // ============ WORLD ============
-    constexpr uintptr_t FUN            = 0x1019A422C;
-    constexpr uintptr_t DATA           = 0x10A029E80;
-    constexpr uintptr_t ACTORARRAY_FUN = 0x105C96B1C;
-
-    // ============ WORLD CHAIN ============
-    constexpr uintptr_t UWORLD_PERSISTENTLEVEL = 0x30;
-    constexpr uintptr_t UWORLD_NETDRIVER       = 0x38;
-    constexpr uintptr_t NETDRIVER_SERVERCONN   = 0x78;
-    constexpr uintptr_t SERVERCONN_PLAYERCTRL  = 0x30;
-
-    // ============ CHARACTER ============
-    constexpr uintptr_t PC_ROOTCOMPONENT = 0x208;
-    constexpr uintptr_t CHAR_PLAYERKEY   = 0x990;
-    constexpr uintptr_t CTRL_PLAYERKEY   = 0x920;
-    constexpr uintptr_t CHAR_TEAMID      = 0x9a8;
-    constexpr uintptr_t BDEAD            = 0xe8c;
-    constexpr uintptr_t BHIDDEN          = 0xe8;
-    constexpr uintptr_t BENSURE          = 0xa69;
-
-    // ============ HEALTH ============
-    constexpr uintptr_t HEALTH          = 0xe70;  // STExtraCharacter::Health (float)
-    constexpr uintptr_t HEALTHMAX       = 0xe74;  // STExtraCharacter::HealthMax (float)
-    constexpr uintptr_t NEARDEATHBREATH = 0x1cb0; // STExtraBaseCharacter::NearDeathBreath (float)
-
-    // ============ SCENE ============
-    constexpr uintptr_t SCENE_RELATIVELOCATION = 0x1e4;
-    constexpr uintptr_t SCENE_WORLDLOCATION    = 0x218;
-
-    // ============ CANVAS ============
-    constexpr uintptr_t CANVAS_SIZEX = 0x40;
-    constexpr uintptr_t CANVAS_SIZEY = 0x44;
-}
-    
-static uintptr_t image_slide_by_name(const char* name) {
-    uint32_t n = _dyld_image_count();
-    for (uint32_t i = 0; i < n; i++) {
-        const char* nm = _dyld_get_image_name(i);
-        if (nm && strstr(nm, name))
-            return (uintptr_t)_dyld_get_image_vmaddr_slide(i);
-    }
-    return 0;
-}
-
-UWorld* GetFullWorld() {
-    uintptr_t slide = image_slide_by_name("ShadowTrackerExtra");
-    if (!slide) return nullptr;
-    using Fn = UWorld*(*)(uintptr_t);
-    return reinterpret_cast<Fn>(slide + off::FUN)(slide + off::DATA);
-}
-
-// ---- safe read helper ----
-template <typename T>
-static inline T safe_read(uintptr_t addr) {
-    if (!addr) return T{};
-    return *reinterpret_cast<T*>(addr);
-}
-
-// ---- GetActors, safe_read ke saath ----
-std::vector<AActor*> GetActors() {
-    auto World = GetFullWorld();
-    if (!World) return {};
-
-    auto PersistentLevel = safe_read<ULevel*>((uintptr_t)World + 0x30); // SDK se hi tha, offset bhi de diya
-    if (!PersistentLevel) return {};
-
-    struct GovnoArray { uintptr_t base; int32_t count; int32_t max; };
-
-    uintptr_t slide = image_slide_by_name("ShadowTrackerExtra");
-    if (!slide) return {};
-
-    using ActorArrayFn = GovnoArray*(*)(uintptr_t);
-    auto actorArrayFn = reinterpret_cast<ActorArrayFn>(slide + off::ACTORARRAY_FUN);
-
-    GovnoArray* arr = actorArrayFn((uintptr_t)PersistentLevel);
-    if (!arr || arr->count <= 0) return {};
-
-    std::vector<AActor*> actors;
-    actors.reserve(arr->count);
-    for (int i = 0; i < arr->count; i++) {
-        uintptr_t Actor = safe_read<uintptr_t>(arr->base + i * sizeof(uintptr_t));
-        if (Actor)
-            actors.push_back(reinterpret_cast<AActor*>(Actor));
-    }
-    return actors;
-}
-
-void DrawLine(UCanvas* Canvas, FVector2D posFrom, FVector2D posTo, float Thickness, FLinearColor Color) {
-    Canvas->K2_DrawLine({posFrom.X, posFrom.Y}, {posTo.X, posTo.Y}, Thickness, Color);
-}
-
-void DrawFilledRectangle(UCanvas* Canvas, float X, float Y, float W, float H, FLinearColor Color) {
-    // Android: drawList->AddRectFilled(ImVec2(X, Y), ImVec2(X - W, Y - H), Color);
-    // Canvas equivalent: X se X-W tak, Y se Y-H tak
-    float startY = Y - H;
-    float endY   = Y;
-
-    for (float i = startY; i < endY; i += 1.f) {
-        Canvas->K2_DrawLine(FVector2D{ X - W, i }, FVector2D{ X, i }, 1.f, Color);
-    }
-}
-
-void DrawText(UCanvas* Canvas, FString Text, FVector2D Pos, FLinearColor Color, FLinearColor OutlineColor, int FontSize, bool isCenter) {
-    if (!Canvas || !Font)
-        return;
-    Font->LegacyFontSize = FontSize;
-    Canvas->K2_DrawText(Font, Text, Pos, Color, 1.f, {}, {}, isCenter, false, true, OutlineColor);
-    Font->LegacyFontSize = 13;
-}
-
-void Drawtext(UCanvas* Canvas, FString Text, FVector2D Pos, FLinearColor Color, FLinearColor OutlineColor, int FontSize, bool isCenter) {
-    if (!Canvas || !Font)
-        return;
-    Font->LegacyFontSize = FontSize;
-    Canvas->K2_DrawText(Font, Text, Pos, Color, 1.f, {}, {}, isCenter, false, false, OutlineColor);
-    Font->LegacyFontSize = 14;
-}
-void DrawTextSafe(UCanvas* Canvas, FString Text, FVector2D Pos, FLinearColor Color, int size = 12) {
-    if (!Font || !Canvas) return;
-    Font->LegacyFontSize = size;
-    Canvas->K2_DrawText(Font, Text, Pos, Color, 1.0f, FLinearColor(0,0,0,0), FVector2D(0,0), true, true, true, FLinearColor(0,0,0,1));
-}
-void DrawFilledRect(UCanvas* Canvas, FVector2D initial_pos, float w, float h, FLinearColor Color)
-{
-    for (float i = 0.f; i < h; i += 1.f)
-    Canvas->K2_DrawLine(FVector2D(initial_pos.X, initial_pos.Y + i), FVector2D(initial_pos.X + w, initial_pos.Y + i), 1.f, Color);
-}
-
-
-
 void* LoadFont() {
     while (!Font) {
         uintptr_t GObjects = CB_GetGObjects();
