@@ -156,6 +156,11 @@ namespace off {
     // ============ CANVAS ============
     constexpr uintptr_t CANVAS_SIZEX = 0x40;
     constexpr uintptr_t CANVAS_SIZEY = 0x44;
+
+ constexpr uintptr_t MESH            = 0x510;
+constexpr uintptr_t BONE_ARRAY_DATA  = 0x0CE0;
+constexpr uintptr_t BONE_ARRAY_COUNT = 0x0CE8;
+
 }
     
 static uintptr_t image_slide_by_name(const char* name) {
