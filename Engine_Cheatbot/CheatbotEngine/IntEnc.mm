@@ -158,6 +158,110 @@ uintptr_t CB_GetGObjects() {
     return GetShadowTrackerAddr(CB_GOBJECTS_ADDR);
 }
 
+struct CB_RawNameEntryArray* CB_GetGNames() {
+    uintptr_t fnAddr = GetShadowTrackerAddr(CB_GNAMES_FN);
+    if (!IsValidPtr(fnAddr)) return nullptr;
+    using FnType = CB_RawNameEntryArray *(*)();
+    return reinterpret_cast<FnType>(fnAddr)();
+}
+
+std::string CB_GetFNameString(int32_t Index) {
+    static CB_RawNameEntryArray* GNames = nullptr;
+    if (!GNames) {
+        GNames = CB_GetGNames();
+        while (!GNames) { sleep(1); GNames = CB_GetGNames(); }
+    }
+    if (!GNames || Index < 0) return "";
+
+    uintptr_t chunkPtr = *reinterpret_cast<uintptr_t*>((uintptr_t)GNames + ((Index >> 14) * sizeof(uintptr_t)));
+    if (!chunkPtr) return "";
+
+    uintptr_t entryPtr = *reinterpret_cast<uintptr_t*>(chunkPtr + ((Index & 0x3FFF) * sizeof(uintptr_t)));
+    if (!entryPtr) return "";
+
+    CB_RawNameEntry* entry = reinterpret_cast<CB_RawNameEntry*>(entryPtr);
+    if (!entry) return "";
+
+    uint16_t header = entry->Header;
+    bool isWide = (header & 1);
+    int length = (header >> 6) & 0x3FF;
+
+    std::string result;
+    result.reserve(length);
+
+    if (isWide) {
+        for (int i = 0; i < length; i++) result.push_back((char)(entry->WideName[i] & 0xFF));
+    } else {
+        for (int i = 0; i < length; i++) result.push_back(entry->AnsiName[i]);
+    }
+    return result;
+}
+
+std::string CB_GetObjectName(uintptr_t Object) {
+    if (!Object) return "";
+    CB_RawFName fname = *reinterpret_cast<CB_RawFName*>(Object + CB_NAME_OFFSET);
+    return CB_GetFNameString(fname.ComparisonIndex);
+}
+
+// ==============================================================================
+// 4. GOBJECTS (Class Finder) & ISA
+// ==============================================================================
+uintptr_t CB_FindClassByName(const std::string& ClassName) {
+    uintptr_t GObjects = CB_GetGObjects();
+    if (!GObjects) return 0;
+
+    // ObjObjects pointer nikaalo
+    uintptr_t ObjObjects = safe_read<uintptr_t>(GObjects + CB_OBJOBJECTS_OFFSET);
+    if (!ObjObjects) return 0;
+
+    // NumElements nikaalo
+    int32_t NumElements = safe_read<int32_t>(ObjObjects + CB_NUMELEMENTS_OFFSET);
+    if (NumElements <= 0 || NumElements > 2000000) return 0; // Safety check
+
+    // Array walk
+    uintptr_t* Objects = reinterpret_cast<uintptr_t*>(ObjObjects);
+
+    for (int i = 0; i < NumElements; i++) {
+        uintptr_t Object = safe_read<uintptr_t>((uintptr_t)&Objects[i]);
+        if (!Object) continue;
+
+        std::string Name = CB_GetObjectName(Object);
+        if (Name == ClassName) {
+            return Object;
+        }
+    }
+    return 0;
+}
+
+bool CB_RawIsA(uintptr_t Object, uintptr_t TargetClass) {
+    if (!Object || !TargetClass) return false;
+    
+    uintptr_t ClassPtr = safe_read<uintptr_t>(Object + CB_CLASSPRIVATE_OFFSET);
+    while (ClassPtr) {
+        if (ClassPtr == TargetClass) return true;
+        ClassPtr = safe_read<uintptr_t>(ClassPtr + CB_SUPERSTRUCT_OFFSET);
+    }
+    return false;
+}
+
+bool CB_IsPlayerCharacter(uintptr_t Actor) {
+    static uintptr_t PlayerCharClass = 0;
+    static bool IsSearching = false;
+    
+    if (PlayerCharClass == 0 && !IsSearching) {
+        IsSearching = true;
+        PlayerCharClass = CB_FindClassByName("ASTExtraPlayerCharacter");
+        if (PlayerCharClass == 0) PlayerCharClass = CB_FindClassByName("UAECharacter");
+        IsSearching = false;
+    }
+    
+    if (PlayerCharClass != 0) return CB_RawIsA(Actor, PlayerCharClass);
+    
+    // Fallback agar class pointer na mile
+    uintptr_t ClassPtr = safe_read<uintptr_t>(Actor + CB_CLASSPRIVATE_OFFSET);
+    std::string className = CB_GetObjectName(ClassPtr);
+    return (className.find("PlayerCharacter") != std::string::npos || className.find("UAECharacter") != std::string::npos);
+}
 namespace off {
     // ============ WORLD ============
     constexpr uintptr_t FUN            = 0x1019A422C;
@@ -512,110 +616,8 @@ if (!rootc) continue;
 // ==============================================================================
 // 3. GNAMES (String Read System)
 // ==============================================================================
-struct CB_RawNameEntryArray* CB_GetGNames() {
-    uintptr_t fnAddr = GetShadowTrackerAddr(CB_GNAMES_FN);
-    if (!IsValidPtr(fnAddr)) return nullptr;
-    using FnType = CB_RawNameEntryArray *(*)();
-    return reinterpret_cast<FnType>(fnAddr)();
-}
 
-std::string CB_GetFNameString(int32_t Index) {
-    static CB_RawNameEntryArray* GNames = nullptr;
-    if (!GNames) {
-        GNames = CB_GetGNames();
-        while (!GNames) { sleep(1); GNames = CB_GetGNames(); }
-    }
-    if (!GNames || Index < 0) return "";
 
-    uintptr_t chunkPtr = *reinterpret_cast<uintptr_t*>((uintptr_t)GNames + ((Index >> 14) * sizeof(uintptr_t)));
-    if (!chunkPtr) return "";
-
-    uintptr_t entryPtr = *reinterpret_cast<uintptr_t*>(chunkPtr + ((Index & 0x3FFF) * sizeof(uintptr_t)));
-    if (!entryPtr) return "";
-
-    CB_RawNameEntry* entry = reinterpret_cast<CB_RawNameEntry*>(entryPtr);
-    if (!entry) return "";
-
-    uint16_t header = entry->Header;
-    bool isWide = (header & 1);
-    int length = (header >> 6) & 0x3FF;
-
-    std::string result;
-    result.reserve(length);
-
-    if (isWide) {
-        for (int i = 0; i < length; i++) result.push_back((char)(entry->WideName[i] & 0xFF));
-    } else {
-        for (int i = 0; i < length; i++) result.push_back(entry->AnsiName[i]);
-    }
-    return result;
-}
-
-std::string CB_GetObjectName(uintptr_t Object) {
-    if (!Object) return "";
-    CB_RawFName fname = *reinterpret_cast<CB_RawFName*>(Object + CB_NAME_OFFSET);
-    return CB_GetFNameString(fname.ComparisonIndex);
-}
-
-// ==============================================================================
-// 4. GOBJECTS (Class Finder) & ISA
-// ==============================================================================
-uintptr_t CB_FindClassByName(const std::string& ClassName) {
-    uintptr_t GObjects = CB_GetGObjects();
-    if (!GObjects) return 0;
-
-    // ObjObjects pointer nikaalo
-    uintptr_t ObjObjects = safe_read<uintptr_t>(GObjects + CB_OBJOBJECTS_OFFSET);
-    if (!ObjObjects) return 0;
-
-    // NumElements nikaalo
-    int32_t NumElements = safe_read<int32_t>(ObjObjects + CB_NUMELEMENTS_OFFSET);
-    if (NumElements <= 0 || NumElements > 2000000) return 0; // Safety check
-
-    // Array walk
-    uintptr_t* Objects = reinterpret_cast<uintptr_t*>(ObjObjects);
-
-    for (int i = 0; i < NumElements; i++) {
-        uintptr_t Object = safe_read<uintptr_t>((uintptr_t)&Objects[i]);
-        if (!Object) continue;
-
-        std::string Name = CB_GetObjectName(Object);
-        if (Name == ClassName) {
-            return Object;
-        }
-    }
-    return 0;
-}
-
-bool CB_RawIsA(uintptr_t Object, uintptr_t TargetClass) {
-    if (!Object || !TargetClass) return false;
-    
-    uintptr_t ClassPtr = safe_read<uintptr_t>(Object + CB_CLASSPRIVATE_OFFSET);
-    while (ClassPtr) {
-        if (ClassPtr == TargetClass) return true;
-        ClassPtr = safe_read<uintptr_t>(ClassPtr + CB_SUPERSTRUCT_OFFSET);
-    }
-    return false;
-}
-
-bool CB_IsPlayerCharacter(uintptr_t Actor) {
-    static uintptr_t PlayerCharClass = 0;
-    static bool IsSearching = false;
-    
-    if (PlayerCharClass == 0 && !IsSearching) {
-        IsSearching = true;
-        PlayerCharClass = CB_FindClassByName("ASTExtraPlayerCharacter");
-        if (PlayerCharClass == 0) PlayerCharClass = CB_FindClassByName("UAECharacter");
-        IsSearching = false;
-    }
-    
-    if (PlayerCharClass != 0) return CB_RawIsA(Actor, PlayerCharClass);
-    
-    // Fallback agar class pointer na mile
-    uintptr_t ClassPtr = safe_read<uintptr_t>(Actor + CB_CLASSPRIVATE_OFFSET);
-    std::string className = CB_GetObjectName(ClassPtr);
-    return (className.find("PlayerCharacter") != std::string::npos || className.find("UAECharacter") != std::string::npos);
-}
 
 // ==============================================================================
 // 5. DRAW PLAYER ESP (Final, Proper)
